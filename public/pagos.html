@@ -862,14 +862,14 @@
 
             onSnapshot(doc(db, "finanzas", "bancos"), (docSnap) => {
                 if (docSnap.exists()) bancosData = docSnap.data().data || {};
-                else { bancosData = defaultBancosData; persistBancos(); }
+                else { bancosData = {}; console.warn('Migración: finanzas/bancos no existe. No se crearán datos de ejemplo automáticamente.'); }
                 loadedBancos = true;
                 if(loadedBancos && loadedCheques) { updateDynamicUI(); renderAll(); loader.style.display = 'none'; }
             }, (error) => console.error("Error Firebase Bancos:", error));
 
             onSnapshot(doc(db, "finanzas", "cheques"), (docSnap) => {
                 if (docSnap.exists()) cheques = docSnap.data().data || [];
-                else { cheques = defaultCheques; persistCheques(); }
+                else { cheques = []; console.warn('Migración: finanzas/cheques no existe. No se crearán datos de ejemplo automáticamente.'); }
                 loadedCheques = true;
                 if(loadedBancos && loadedCheques) { updateDynamicUI(); renderAll(); loader.style.display = 'none'; }
             }, (error) => console.error("Error Firebase Cheques:", error));
