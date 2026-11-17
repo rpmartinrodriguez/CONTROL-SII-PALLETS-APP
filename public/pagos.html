@@ -820,19 +820,21 @@
     <!-- ================= SCRIPTS & FIREBASE ================= -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
-        // Configuración Firebase
+        // Proyecto nuevo de Firebase (rama de prueba). Mantener aislado de los datos antiguos.
         const firebaseConfig = {
-            apiKey: "AIzaSyDPOTn7fe_XSjrzSl1iOwZyump1KBLOVH4",
-            authDomain: "listapagos.firebaseapp.com",
-            projectId: "listapagos",
-            storageBucket: "listapagos.firebasestorage.app",
-            messagingSenderId: "618616599468",
-            appId: "1:618616599468:web:633f250cf658bed8920009"
+            apiKey: "AIzaSyDaM97K6kU48_RNtLIk7YRBeRp8dghmpFk",
+            authDomain: "sii-pallets-app.firebaseapp.com",
+            projectId: "sii-pallets-app",
+            storageBucket: "sii-pallets-app.firebasestorage.app",
+            messagingSenderId: "287028556134",
+            appId: "1:287028556134:web:ba55d2bfead65e9ade18a7"
         };
 
         const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
         const db = getFirestore(app);
 
         // Variables Globales
@@ -842,16 +844,6 @@
         let bancosData = {};
         let cheques = [];
         
-        const defaultBancosData = {
-            "BCO-1": { nombre: "BANCO NACION - CA", saldo: 0, descubierto: 0, vtoAcuerdo: "", color: "#3b82f6" },
-            "BCO-2": { nombre: "BANCO NACION - CC", saldo: -19977500, descubierto: 20000000, vtoAcuerdo: "2026-12-31", color: "#3b82f6" },
-            "BCO-3": { nombre: "BCO SANTANDER CC", saldo: -22544000, descubierto: 22700000, vtoAcuerdo: "2026-10-15", color: "#ef4444" },
-            "BCO-EF": { nombre: "CAJA EFECTIVO", saldo: 500000, descubierto: 0, vtoAcuerdo: "", color: "#10b981" }
-        };
-        const defaultCheques = [
-            { id: 1, fecha: "2026-06-20", nro: "8258", nombre: "DROGUERIA DEL SUD", categoria: "MERCADERIA", importe: 1000000, banco: "BCO-3", tipo: "Fisico", estado: "PENDIENTE" }
-        ];
-
         // --- MANEJO DE FIREBASE ---
         const loader = document.getElementById('fb-loader');
 
@@ -862,14 +854,14 @@
 
             onSnapshot(doc(db, "finanzas", "bancos"), (docSnap) => {
                 if (docSnap.exists()) bancosData = docSnap.data().data || {};
-                else { bancosData = defaultBancosData; persistBancos(); }
+                else { bancosData = {}; console.warn('Migración: finanzas/bancos no existe. No se crearán datos de ejemplo automáticamente.'); }
                 loadedBancos = true;
                 if(loadedBancos && loadedCheques) { updateDynamicUI(); renderAll(); loader.style.display = 'none'; }
             }, (error) => console.error("Error Firebase Bancos:", error));
 
             onSnapshot(doc(db, "finanzas", "cheques"), (docSnap) => {
                 if (docSnap.exists()) cheques = docSnap.data().data || [];
-                else { cheques = defaultCheques; persistCheques(); }
+                else { cheques = []; console.warn('Migración: finanzas/cheques no existe. No se crearán datos de ejemplo automáticamente.'); }
                 loadedCheques = true;
                 if(loadedBancos && loadedCheques) { updateDynamicUI(); renderAll(); loader.style.display = 'none'; }
             }, (error) => console.error("Error Firebase Cheques:", error));
@@ -970,8 +962,25 @@
             document.getElementById('fecha-actual').addEventListener('change', renderAll);
             
             initResizers();
-            window.switchTab('pagos'); 
-            loadDataRealtime(); 
+            window.switchTab('pagos');
+            // Esperar a que Firebase Authentication esté listo antes de leer la nueva base.
+            // Evita lecturas anónimas sin sesión y sus errores de permisos.
+            let lecturaIniciada = false;
+            onAuthStateChanged(auth, (usuario) => {
+                if (usuario && !lecturaIniciada) {
+                    lecturaIniciada = true;
+                    loadDataRealtime();
+                } else if (!usuario) {
+                    signInAnonymously(auth).catch((error) => {
+                        console.error('Firebase Auth Pagos:', error);
+                        const loader = document.getElementById('fb-loader');
+                        if (loader) {
+                            loader.style.display = 'block';
+                            loader.textContent = 'No se pudo autenticar Pagos. Revisá que Authentication > Anonymous esté habilitado.';
+                        }
+                    });
+                }
+            }, (error) => console.error('Firebase Auth Pagos:', error));
         });
 
         // --- LÓGICA RESIZER COLUMNAS EXCEL-STYLE ---
