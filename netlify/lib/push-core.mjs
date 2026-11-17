@@ -12,6 +12,11 @@ const isPaid = s => ['PAGADO','PAID','CANCELADO','COBRADO','SALDADO'].includes(S
 // Se mantiene apagado hasta que el acceso a la aplicación esté restringido
 // a personal autorizado. Firebase Anonymous NO demuestra esa autorización.
 export const autoEnrollmentEnabled = () => process.env.SII_PUSH_AUTO_ENROLLMENT === 'true';
+export const isQuotaExceeded = error =>
+  Number(error?.code) === 8 ||
+  String(error?.code || '').toLowerCase() === 'resource-exhausted' ||
+  /resource.exhausted|quota exceeded|cuota excedida|quota exhausted/i.test(String(error?.message || error?.details || ''));
+
 
 export function firebaseAdmin() {
   const raw=process.env.SII_FIREBASE_SERVICE_ACCOUNT_JSON;
@@ -140,7 +145,12 @@ async function snapshotChanges(db,group,items) {
         body:prev.name+' · '+money(prev.amount)+' · Ref. '+prev.number
       });
     }
-    tx.set(ref,{items:current,updatedAt:FieldValue.serverTimestamp()});
+    // El escaneo solo lee si no hay novedades. Anteriormente se escribían
+    // tres documentos de snapshot en CADA comprobación, aun sin cambios.
+    // En Spark eso consume cuota innecesariamente.
+    if (!snap.exists || JSON.stringify(before) !== JSON.stringify(current)) {
+      tx.set(ref,{items:current,updatedAt:FieldValue.serverTimestamp()});
+    }
     return {baseline:!snap.exists,eventos};
   });
 }
