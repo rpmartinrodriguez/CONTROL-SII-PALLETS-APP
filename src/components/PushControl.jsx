@@ -1,161 +1,150 @@
 import React, { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { getApp } from 'firebase/app';
-import { deleteToken, getMessaging, getToken, isSupported } from 'firebase/messaging';
+import { getMessaging, getToken, isSupported } from 'firebase/messaging';
 import { auth } from '../firebase';
+import { esperarServiceWorkerActivo } from '../utils/pushServiceWorker';
 
-const PUBLIC_VAPID = import.meta.env.VITE_SII_FCM_VAPID_PUBLIC || '';
-const DEVICE_OPT_IN_KEY = 'sii_pallets_push_opt_in_v2';
-const baseBtn = 'px-4 py-3 rounded-xl font-black text-sm disabled:opacity-50';
+const VAPID_PUBLICA = import.meta.env.VITE_SII_FCM_VAPID_PUBLIC || '';
+const OPT_IN = 'sii_pallets_push_opt_in_v2';
 
-async function registrarEnServidor(token, accion) {
-  if (!auth.currentUser) throw new Error('La sesión Firebase todavía no está lista.');
-  const idToken = await auth.currentUser.getIdToken();
-  const response = await fetch('/.netlify/functions/push-register', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + idToken },
-    body: JSON.stringify({ action: accion, token, deviceName: navigator.userAgentData?.platform || navigator.platform || 'Equipo web', userAgent: navigator.userAgent })
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || 'No se pudo registrar el dispositivo.');
-  return data;
-}
-
-async function tokenDeEsteDispositivo() {
-  if (!PUBLIC_VAPID) throw new Error('Falta configurar VITE_SII_FCM_VAPID_PUBLIC en Netlify.');
+async function tokenDeEsteEquipo() {
+  if (!VAPID_PUBLICA) throw new Error('Falta configurar la clave pública VAPID en Netlify.');
   if (!('serviceWorker' in navigator) || !(await isSupported())) {
     throw new Error('Este navegador no admite Firebase Web Push.');
   }
-  const worker = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
-    scope: '/firebase-push-scope'
+
+  // Registrar no significa que esté activo. Esperamos específicamente
+  // al SW de Firebase, no al Service Worker general de la PWA.
+  const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+    scope: '/firebase-push-scope',
+    updateViaCache: 'none'
   });
+  await esperarServiceWorkerActivo(registration);
+
   const token = await getToken(getMessaging(getApp()), {
-    vapidKey: PUBLIC_VAPID,
-    serviceWorkerRegistration: worker
+    vapidKey: VAPID_PUBLICA,
+    serviceWorkerRegistration: registration
   });
-  if (!token) throw new Error('No fue posible obtener el token del dispositivo.');
+  if (!token) throw new Error('Firebase no entregó el token de notificaciones.');
   return token;
+}
+
+async function llamarPush(path, payload) {
+  const usuario = auth.currentUser;
+  if (!usuario) throw new Error('La sesión Firebase todavía no está lista.');
+  const response = await fetch('/.netlify/functions/' + path, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + await usuario.getIdToken()
+    },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || 'Error en el servicio de notificaciones.');
+  return data;
+}
+
+async function registrar(token) {
+  return llamarPush('push-register', {
+    action: 'register', token,
+    deviceName: navigator.userAgentData?.platform || navigator.platform || 'Equipo web',
+    userAgent: navigator.userAgent
+  });
 }
 
 export default function PushControl({ cerrar }) {
   const [sesion, setSesion] = useState(Boolean(auth.currentUser));
-  const [habilitado, setHabilitado] = useState(false);
+  const [activado, setActivado] = useState(false);
   const [ocupado, setOcupado] = useState(false);
-  const [mensaje, setMensaje] = useState('');
+  const [estado, setEstado] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => onAuthStateChanged(auth, user => setSesion(Boolean(user))), []);
 
-  // Si el usuario ya optó por recibir push, renovar el registro en el servidor
-  // después de recuperar la sesión; no volver a solicitar permisos automáticamente.
   useEffect(() => {
     if (!sesion || typeof Notification === 'undefined') return undefined;
-    if (localStorage.getItem(DEVICE_OPT_IN_KEY) !== 'yes' || Notification.permission !== 'granted') return undefined;
+    if (localStorage.getItem(OPT_IN) !== 'yes' || Notification.permission !== 'granted') return undefined;
     let cancelado = false;
     (async () => {
       try {
-        const token = await tokenDeEsteDispositivo();
-        await registrarEnServidor(token, 'register');
-        if (!cancelado) setHabilitado(true);
+        const token = await tokenDeEsteEquipo();
+        await registrar(token);
+        if (!cancelado) setActivado(true);
       } catch (err) {
-        if (!cancelado) setError('No se pudo renovar el registro push: ' + (err.message || String(err)));
+        if (!cancelado) setError(err?.message || String(err));
       }
     })();
     return () => { cancelado = true; };
   }, [sesion]);
 
   const activar = async () => {
-    setError(''); setMensaje('');
-    if (!sesion) { setError('Esperá a que inicie la sesión Firebase.'); return; }
-    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
-      setError('Este navegador no admite notificaciones push.'); return;
+    if (ocupado || activado) return;
+    setError(''); setEstado('');
+    if (!sesion) return setError('Esperá a que inicie la sesión de Firebase.');
+    if (typeof Notification === 'undefined' || !('serviceWorker' in navigator)) {
+      return setError('Este dispositivo no admite notificaciones Web Push.');
     }
-    if (!PUBLIC_VAPID) { setError('Falta configurar la clave pública Web Push en Netlify.'); return; }
+    if (!VAPID_PUBLICA) return setError('Falta la clave VAPID pública en Netlify.');
 
     setOcupado(true);
     try {
-      // Safari/iOS exige que el permiso se solicite a partir de una acción del usuario.
-      const permiso = Notification.permission === 'granted'
-        ? 'granted' : await Notification.requestPermission();
-      if (permiso !== 'granted') throw new Error('El dispositivo no autorizó las notificaciones.');
-      const token = await tokenDeEsteDispositivo();
-      await registrarEnServidor(token, 'register');
-      localStorage.setItem(DEVICE_OPT_IN_KEY, 'yes');
-      setHabilitado(true);
-      setMensaje('Notificaciones activadas. Este dispositivo se registró automáticamente en SII PALLETS.');
+      // El permiso se solicita directamente desde el botón, para Safari/iPhone.
+      const permiso = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+      if (permiso !== 'granted') throw new Error('Tenés que permitir las notificaciones en el dispositivo.');
+      const token = await tokenDeEsteEquipo();
+      await registrar(token);
+      localStorage.setItem(OPT_IN, 'yes');
+      setActivado(true);
+      setEstado('Notificaciones activadas.');
     } catch (err) {
-      setError(err.message || String(err));
-    } finally { setOcupado(false); }
+      setError(err?.message || String(err));
+    } finally {
+      setOcupado(false);
+    }
   };
 
-  const desactivar = async () => {
-    setError(''); setMensaje(''); setOcupado(true);
+  const probar = async () => {
+    if (!activado || ocupado) return;
+    setError(''); setEstado(''); setOcupado(true);
     try {
-      const token = await tokenDeEsteDispositivo();
-      await registrarEnServidor(token, 'unregister');
-      await deleteToken(getMessaging(getApp()));
-      localStorage.removeItem(DEVICE_OPT_IN_KEY);
-      setHabilitado(false);
-      setMensaje('Notificaciones desactivadas en este dispositivo.');
+      const token = await tokenDeEsteEquipo();
+      const result = await llamarPush('push-test', { token });
+      setEstado(result.ok ? 'Prueba enviada a este dispositivo. Si tenés la app abierta, revisá el aviso dentro de la pantalla.' : 'No se pudo enviar la prueba.');
     } catch (err) {
-      setError(err.message || String(err));
-    } finally { setOcupado(false); }
-  };
-
-  const comprobar = async () => {
-    setError(''); setMensaje(''); setOcupado(true);
-    try {
-      if (!auth.currentUser) throw new Error('Esperá a que inicie Firebase.');
-      const response = await fetch('/.netlify/functions/push-check', {
-        method: 'POST',
-        headers: { Authorization: 'Bearer ' + await auth.currentUser.getIdToken() }
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || 'No se pudo revisar el estado.');
-      setMensaje('Movimientos revisados. Nuevos avisos detectados: ' + (data.eventos || 0) +
-        '. Dispositivos registrados: ' + (data.dispositivos || 0) + '.');
-    } catch (err) {
-      setError(err.message || String(err));
-    } finally { setOcupado(false); }
+      setError(err?.message || String(err));
+    } finally {
+      setOcupado(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950/55 z-[70] flex items-start sm:items-center justify-center p-3 overflow-auto">
-      <section className="w-full max-w-md bg-white p-5 sm:p-7 rounded-3xl shadow-2xl my-auto space-y-4 text-slate-900"
-        role="dialog" aria-modal="true" aria-label="Notificaciones push SII PALLETS">
-        <div className="flex justify-between items-start gap-3">
-          <div>
-            <p className="text-[11px] font-extrabold tracking-[.15em] text-blue-700">SII PALLETS PRO</p>
-            <h2 className="text-xl font-black mt-1">Notificaciones push</h2>
+    <div className="fixed inset-0 bg-slate-950/60 z-[70] flex items-center justify-center p-3">
+      <section role="dialog" aria-modal="true" aria-label="Notificaciones push"
+        className="w-full max-w-sm rounded-3xl bg-white p-5 sm:p-6 shadow-2xl text-slate-900 space-y-4">
+        <div className="flex justify-between items-center gap-3">
+          <h2 className="text-xl font-black">Notificaciones push</h2>
+          <button type="button" onClick={cerrar} aria-label="Cerrar" className="p-2 rounded-xl bg-slate-100">✕</button>
+        </div>
+        <p className="text-sm text-slate-500">Recibí avisos de cobros, pagos y vencimientos.</p>
+
+        {activado ? (
+          <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 font-extrabold text-emerald-800 text-center" role="status">
+            ✓ Notificaciones activadas
           </div>
-          <button type="button" onClick={cerrar} aria-label="Cerrar"
-            className="p-2 rounded-xl bg-slate-100">✕</button>
-        </div>
-        <p className="text-sm text-slate-600">
-          Cada teléfono o computadora se registra automáticamente al activar las notificaciones.
-          Recibirás avisos sobre cobros, pagos, cancelaciones y vencimientos próximos.
-        </p>
-        <div className={'rounded-xl p-3 text-sm border ' +
-          (habilitado ? 'bg-emerald-50 border-emerald-200 text-emerald-800' :
-            'bg-slate-50 border-slate-200 text-slate-700')}>
-          <strong>{habilitado ? '✓ Push activo en este equipo' : 'Push pendiente de activación'}</strong>
-          <p className="text-xs mt-1">No necesitás copiar UID ni configurar una variable por dispositivo.</p>
-        </div>
-        <button type="button" disabled={ocupado || !sesion} onClick={habilitado ? desactivar : activar}
-          className={baseBtn + ' w-full ' + (habilitado ? 'bg-slate-100 text-slate-900' : 'bg-blue-700 text-white')}>
-          {ocupado ? 'Procesando…' : habilitado ? 'Desactivar en este equipo' : 'Activar notificaciones'}
+        ) : (
+          <button type="button" disabled={!sesion || ocupado} onClick={activar}
+            className="w-full min-h-12 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-extrabold disabled:opacity-50">
+            {ocupado ? 'Activando…' : 'Activar notificaciones'}
+          </button>
+        )}
+        <button type="button" disabled={!activado || ocupado} onClick={probar}
+          className="w-full min-h-12 rounded-xl border border-blue-200 bg-blue-50 text-blue-800 font-extrabold disabled:opacity-50">
+          {ocupado && activado ? 'Enviando…' : 'Probar push'}
         </button>
-        <button type="button" disabled={ocupado || !sesion} onClick={comprobar}
-          className={baseBtn + ' w-full border border-slate-200 bg-white text-slate-800'}>
-          Revisar movimientos y avisos
-        </button>
-        <p className="text-xs text-slate-500">
-          En iPhone, instalá esta PWA en la pantalla de inicio y abrila desde ese ícono.
-          El dispositivo debe aceptar el permiso push. El acceso a la app debe estar
-          restringido al personal autorizado para proteger los datos financieros.
-        </p>
-        {mensaje && <p className="rounded-xl bg-emerald-50 text-emerald-900 p-3 text-sm" role="status">{mensaje}</p>}
-        {error && <p className="rounded-xl bg-red-50 text-red-900 p-3 text-sm" role="alert">{error}</p>}
+        {estado && <p className="text-sm text-emerald-800 bg-emerald-50 rounded-xl p-3" role="status">{estado}</p>}
+        {error && <p className="text-sm text-red-800 bg-red-50 rounded-xl p-3" role="alert">{error}</p>}
       </section>
     </div>
   );
