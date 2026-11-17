@@ -52,17 +52,33 @@ async function tokenDeEsteEquipo() {
 async function llamarPush(path, payload) {
   const usuario = auth.currentUser;
   if (!usuario) throw new Error('La sesión Firebase todavía no está lista.');
-  const response = await fetch('/.netlify/functions/' + path, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: 'Bearer ' + await usuario.getIdToken()
-    },
-    body: JSON.stringify(payload)
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = new Error(data.error || 'Error en el servicio de notificaciones.');
+  let response;
+  try {
+    response = await fetch('/.netlify/functions/' + path, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + await usuario.getIdToken()
+      },
+      body: JSON.stringify(payload),
+      cache: 'no-store'
+    });
+  } catch (err) {
+    throw new Error('No se pudo conectar con Netlify. Revisá la conexión del equipo y que la app esté publicada. Detalle: '+(err?.message||'error de red'));
+  }
+  const raw = await response.text().catch(()=> '');
+  let data = {};
+  try { data = JSON.parse(raw); } catch { /* Netlify puede responder HTML ante una falla de función */ }
+  if (!response.ok || data?.ok === false) {
+    const requestId=response.headers.get('x-nf-request-id');
+    const detalle=typeof data.error==='string'&&data.error ? data.error :
+      response.status===404 ? 'La función '+path+' no está disponible en el despliegue de Netlify.' :
+      response.status===401||response.status===403 ? 'El servidor rechazó la sesión o la configuración de push está deshabilitada.' :
+      response.status===429 ? 'Se alcanzó una cuota o límite temporal del servicio.' :
+      response.status>=500 ? 'La función de Netlify falló al ejecutarse. Revisá Functions → Logs en Netlify.' :
+      'El servidor devolvió una respuesta inesperada.';
+    const error = new Error('HTTP '+response.status+' · '+detalle+
+      (requestId?' · Netlify ID: '+requestId:''));
     error.code = data.code || String(response.status);
     throw error;
   }
@@ -147,10 +163,19 @@ export default function PushControl({ cerrar }) {
     setError(''); setEstado(''); setOcupado(true);
     try {
       const token = await tokenDeEsteEquipo();
+      // Verificar el registro antes de probar; un estado guardado localmente
+      // no asegura que Firebase todavía reconozca el dispositivo.
+      await registrar(token);
+      localStorage.setItem(CONFIRMADO_EN,String(Date.now()));
       const result = await llamarPush('push-test', { token });
-      setEstado(result.ok ? 'Prueba enviada a este dispositivo. Si tenés la app abierta, revisá el aviso dentro de la pantalla.' : 'No se pudo enviar la prueba.');
+      setEstado(result.ok ? 'Firebase aceptó la prueba para este equipo. Revisá las notificaciones del teléfono.' : 'El servidor no confirmó el envío.');
     } catch (err) {
-      setError(err?.message || String(err));
+      const msg=mensajeError(err);
+      if(/no está registrado|PUSH_DISABLED|inscripción automática|HTTP 403|HTTP 409/i.test(msg)){
+        setActivado(false);
+        localStorage.removeItem(CONFIRMADO_EN);
+      }
+      setError(msg);
     } finally {
       setOcupado(false);
     }
@@ -164,7 +189,7 @@ export default function PushControl({ cerrar }) {
           <h2 className="text-xl font-black">Notificaciones push</h2>
           <button type="button" onClick={cerrar} aria-label="Cerrar" className="p-2 rounded-xl bg-slate-100">✕</button>
         </div>
-        <p className="text-sm text-slate-500">Recibí avisos de cobros, pagos y vencimientos.</p>
+        <p className="text-sm text-slate-500">Recibí avisos de cobros, pagos, presupuestos y vencimientos.</p>
 
         {activado ? (
           <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 font-extrabold text-emerald-800 text-center" role="status">
@@ -181,7 +206,10 @@ export default function PushControl({ cerrar }) {
           {ocupado && activado ? 'Enviando…' : 'Probar push'}
         </button>
         {estado && <p className="text-sm text-emerald-800 bg-emerald-50 rounded-xl p-3" role="status">{estado}</p>}
-        {error && <p className="text-sm text-red-800 bg-red-50 rounded-xl p-3" role="alert">{error}</p>}
+        {error && <div className="text-sm text-red-800 bg-red-50 rounded-xl p-3 space-y-2" role="alert">
+          <p className="break-words">{error}</p>
+          <button type="button" className="text-xs underline font-bold" onClick={()=>navigator.clipboard?.writeText(error)}>Copiar diagnóstico</button>
+        </div>}
       </section>
     </div>
   );
