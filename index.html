@@ -22,11 +22,64 @@
     <script type="module" src="/src/main.jsx"></script>
     
     <script>
-        if ('serviceWorker' in navigator && window.location.protocol.indexOf('http') === 0) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js').catch(e => console.log("SW Info:", e));
-            });
-        }
+      // Detecta cada nuevo despliegue de Netlify sin cerrar la PWA.
+      // No recarga formularios en uso: ofrece confirmar la actualización.
+      if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+        window.addEventListener('load', async () => {
+          let registration;
+          let currentVersion = '';
+          let refreshing = false;
+          let updateNotice;
+          const showUpdate = () => {
+            if (updateNotice) return;
+            updateNotice = document.createElement('div');
+            updateNotice.setAttribute('role','status');
+            updateNotice.style.cssText = 'position:fixed;bottom:calc(88px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);z-index:10000;background:#132b4e;color:white;padding:12px 16px;border-radius:14px;box-shadow:0 8px 28px #0005;display:flex;align-items:center;gap:12px;font:600 13px system-ui;max-width:calc(100vw - 24px)';
+            const label = document.createElement('span');
+            label.textContent = 'Actualización disponible. Guardá o cancelá el formulario antes de actualizar.';
+            const button = document.createElement('button');
+            button.textContent = 'Actualizar ahora';
+            button.style.cssText = 'background:#fff;color:#132b4e;border:0;border-radius:9px;padding:9px 12px;font-weight:800;white-space:nowrap';
+            button.addEventListener('click',()=>location.reload());
+            updateNotice.append(label,button);
+            document.body.appendChild(updateNotice);
+          };
+          const safeToRefresh = () => {
+            const active=document.activeElement;
+            const typing=active && active.matches && active.matches('input,textarea,select,[contenteditable="true"]');
+            return !window.__siiBudgetDraftDirty && !typing;
+          };
+          const refresh = () => {
+            if(refreshing) return;
+            if(!safeToRefresh()){showUpdate();return;}
+            refreshing=true;
+            location.reload();
+          };
+          try {
+            registration = await navigator.serviceWorker.register('/sw.js',{updateViaCache:'none'});
+            navigator.serviceWorker.addEventListener('controllerchange',refresh);
+          } catch (error) { console.warn('PWA: registro de actualización no disponible',error); }
+          const checkVersion=async()=>{
+            if(document.visibilityState==='hidden'||!navigator.onLine)return;
+            try{
+              const response=await fetch('/version.json',{cache:'no-store'});
+              if(!response.ok)return;
+              const data=await response.json();
+              if(!data.version)return;
+              if(!currentVersion){currentVersion=data.version;return;}
+              if(data.version!==currentVersion){
+                if(registration) await registration.update().catch(()=>{});
+                // El worker puede estar instalado pero una edición impide reiniciar.
+                refresh();
+              }
+            }catch(error){console.warn('PWA: revisión de versión pendiente',error);}
+          };
+          await checkVersion();
+          setInterval(checkVersion,60000);
+          document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void checkVersion();});
+          window.addEventListener('online',()=>void checkVersion());
+        });
+      }
     </script>
 </body>
 </html>
