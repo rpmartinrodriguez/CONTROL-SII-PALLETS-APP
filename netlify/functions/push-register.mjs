@@ -19,8 +19,17 @@ export default async function handler(request) {
       return jsonResponse(200,{ok:true,registered:false});
     }
     const before=await ref.get();
-    if(before.exists&&before.data().uid!==uid)return jsonResponse(403,{error:'Este token pertenece a otra sesión'});
-    await ref.set({uid,token:input.token,enabled:true,updatedAt:FieldValue.serverTimestamp()},{merge:true});
-    return jsonResponse(200,{ok:true,registered:true});
+    // El token identifica esta instalación. Si se restauró la PWA pero Firebase
+    // generó otro UID anónimo, se reasocia automáticamente al UID actual.
+    const deviceName=String(input.deviceName||'Dispositivo web').slice(0,80);
+    const userAgent=String(input.userAgent||'').slice(0,180);
+    const record={
+      uid,token:input.token,enabled:true,deviceName,userAgent,
+      origin:new URL(request.url).origin,
+      updatedAt:FieldValue.serverTimestamp()
+    };
+    if(!before.exists)record.createdAt=FieldValue.serverTimestamp();
+    await ref.set(record,{merge:true});
+    return jsonResponse(200,{ok:true,registered:true,deviceName});
   }catch(error){console.error('SII push-register:',error.message);return jsonResponse(403,{error:error.message||'Acceso no autorizado'});}
 }
