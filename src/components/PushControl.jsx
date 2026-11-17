@@ -68,10 +68,12 @@ async function llamarPush(path, payload) {
   }
   const raw = await response.text().catch(()=> '');
   let data = {};
-  try { data = JSON.parse(raw); } catch { /* Netlify puede responder HTML ante una falla de función */ }
-  if (!response.ok || data?.ok === false) {
+  try { data = JSON.parse(raw) || {}; } catch { /* Netlify puede responder HTML ante una falla de función */ }
+  const invalidJSON=!response.headers.get('content-type')?.includes('application/json');
+  if (!response.ok || invalidJSON || data?.ok === false) {
     const requestId=response.headers.get('x-nf-request-id');
     const detalle=typeof data.error==='string'&&data.error ? data.error :
+      invalidJSON ? 'Netlify no devolvió JSON. Posible función no publicada, error de runtime o redirección incorrecta.' :
       response.status===404 ? 'La función '+path+' no está disponible en el despliegue de Netlify.' :
       response.status===401||response.status===403 ? 'El servidor rechazó la sesión o la configuración de push está deshabilitada.' :
       response.status===429 ? 'Se alcanzó una cuota o límite temporal del servicio.' :
@@ -171,7 +173,7 @@ export default function PushControl({ cerrar }) {
       setEstado(result.ok ? 'Firebase aceptó la prueba para este equipo. Revisá las notificaciones del teléfono.' : 'El servidor no confirmó el envío.');
     } catch (err) {
       const msg=mensajeError(err);
-      if(/no está registrado|PUSH_DISABLED|inscripción automática|HTTP 403|HTTP 409/i.test(msg)){
+      if(/no está registrado|PUSH_DISABLED|inscripción automática|FCM_SEND_FAILED|HTTP 403|HTTP 409/i.test(msg)){
         setActivado(false);
         localStorage.removeItem(CONFIRMADO_EN);
       }
