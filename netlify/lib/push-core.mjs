@@ -125,6 +125,17 @@ async function snapshotChanges(db,group,items) {
         ...event
       }]:[];
     }):[];
+    // Detectar también anulación/eliminación, distinta de pago/saldo cancelado.
+    if(snap.exists)for(const [key,prev] of Object.entries(before)){
+      if(current[key])continue;
+      const cobro=prev.kind==='cobro';
+      eventos.push({
+        id:'eliminado:'+key+':'+sha(JSON.stringify(prev)),
+        category:cobro?'deleted_collect':'deleted_pay',
+        title:cobro?'Cobro eliminado / anulado':'Pago eliminado / anulado',
+        body:prev.name+' · '+money(prev.amount)+' · Ref. '+prev.number
+      });
+    }
     tx.set(ref,{items:current,updatedAt:FieldValue.serverTimestamp()});
     return {baseline:!snap.exists,eventos};
   });
