@@ -14,7 +14,7 @@ firebase.messaging().onBackgroundMessage(payload=>{
   const body=payload.data?.body||'Hay un movimiento nuevo.';
   self.registration.showNotification(title,{
     body,icon:'/logo.png',badge:'/logo.png',
-    data:{url:payload.data?.url||'/'},tag:'sii-'+(payload.data?.category||'movimiento')
+    data:{url:payload.data?.url||'/'},tag:'sii-'+(payload.data?.eventId||payload.data?.category||'movimiento')
   });
 });
 self.addEventListener('notificationclick',event=>{
