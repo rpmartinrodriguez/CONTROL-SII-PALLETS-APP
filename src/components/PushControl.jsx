@@ -9,7 +9,9 @@ const VAPID_PUBLICA = import.meta.env.VITE_SII_FCM_VAPID_PUBLIC || '';
 const OPT_IN = 'sii_pallets_push_opt_in_v2';
 const CONFIRMADO_EN = 'sii_pallets_push_confirmado_en_v1';
 const CACHE_MS = 12 * 60 * 60 * 1000;
-const mensajeError = error => /resource.exhausted|quota exceeded|firestore_quota/i.test(String(error?.message||''))
+const mensajeError = error => /registration failed|push service error|push service unavailable/i.test(String(error?.message||error))
+  ? 'El navegador no pudo conectarse al servicio push del dispositivo (no es un error del registro de SII PALLETS en Firebase). Verificá conexión, actualizá Chrome y Servicios de Google Play en Android, desactivá VPN o ahorro de datos, y volvé a intentar. En iPhone, abrí la app instalada desde la pantalla de inicio, no desde una pestaña de Safari. Detalle técnico: '+String(error?.message||error)
+  : /resource.exhausted|quota exceeded|firestore_quota/i.test(String(error?.message||''))
   ? 'Firebase agotó su cuota temporal de operaciones. Este equipo todavía no quedó registrado. Revisá Firestore → Uso y reintentá después del restablecimiento de cuota.'
   : String(error?.message||error);
 
@@ -27,10 +29,22 @@ async function tokenDeEsteEquipo() {
   });
   await esperarServiceWorkerActivo(registration);
 
-  const token = await getToken(getMessaging(getApp()), {
-    vapidKey: VAPID_PUBLICA,
-    serviceWorkerRegistration: registration
-  });
+  let token;
+  try {
+    token = await getToken(getMessaging(getApp()), {
+      vapidKey: VAPID_PUBLICA,
+      serviceWorkerRegistration: registration
+    });
+  } catch (error) {
+    // El proveedor push del navegador (Chrome/FCM/APNs) puede fallar antes de
+    // que Firebase entregue un token; no registrar estados falsos como activos.
+    if (/registration failed|push service error/i.test(String(error?.message||error))) {
+      const wrapped=new Error('No se pudo registrar el servicio push del navegador: '+String(error?.message||error));
+      wrapped.code='BROWSER_PUSH_SERVICE';
+      throw wrapped;
+    }
+    throw error;
+  }
   if (!token) throw new Error('Firebase no entregó el token de notificaciones.');
   return token;
 }
