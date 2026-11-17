@@ -2,6 +2,7 @@ import React, {useEffect,useMemo,useState} from 'react';
 import { addDoc, collection, doc, onSnapshot, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { coincideCliente, normalizarBusqueda, ultimoPrecioCliente } from '../utils/clientesPresupuesto';
+import { agruparPresupuestosPorCliente, proximoNumeroDisponible, presupuestoCopia } from '../utils/historialPresupuestos';
 import { LOGO_PRESUPUESTO } from '../assets/logoPresupuesto';
 import {
   EMISOR,ITEM_VACIO,COTIZACION_INICIO,numeroCotizacion,fechaHoyLocal,
@@ -38,6 +39,9 @@ export default function PresupuestosPDF() {
   const [showClientes,setShowClientes]=useState(false);
   const [guardandoCliente,setGuardandoCliente]=useState(false);
   const [historialError,setHistorialError]=useState('');
+  const [mostrarGuardados,setMostrarGuardados]=useState(false);
+  const [clienteGuardadoAbierto,setClienteGuardadoAbierto]=useState('');
+  const [preciosParaRevisar,setPreciosParaRevisar]=useState([]);
   useEffect(()=>{
     const unsubClientes=onSnapshot(collection(db,'clientes_presupuestos_sii'),snap=>{
       setClientes(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.razonSocial||'').localeCompare(String(b.razonSocial||''))));
@@ -47,6 +51,21 @@ export default function PresupuestosPDF() {
     },err=>setHistorialError('No se pudo cargar el historial: '+err.message));
     return ()=>{unsubClientes();unsubHistorial();};
   },[]);
+  const gruposGuardados=useMemo(()=>agruparPresupuestosPorCliente(historial),[historial]);
+  const sugerirNumero=()=>numeroCotizacion(proximoNumeroDisponible(historial,
+    Number(quote.numero?.split('-')[1])+1||COTIZACION_INICIO,getSequence()));
+  const copiarGuardado=original=>{
+    const numero=sugerirNumero();
+    const copia=presupuestoCopia(original,numero,fechaHoyLocal(),()=>ITEM_VACIO().id);
+    if(!copia.items.length)copia.items=[ITEM_VACIO()];
+    setQuote(copia);
+    setClienteId(original.clienteId||clientes.find(c=>
+      normalizarBusqueda(c.razonSocial)===normalizarBusqueda(original.cliente?.razonSocial))?.id||'');
+    setPreciosParaRevisar(copia.items.map(x=>x.id));
+    setMostrarGuardados(false);setError('');
+    setNotice('Presupuesto '+original.numero+' copiado como '+numero+'. Revisá los precios marcados en rojo antes de emitir el nuevo PDF.');
+    requestAnimationFrame(()=>document.getElementById('sii-presupuesto-editor')?.scrollIntoView({behavior:'smooth',block:'start'}));
+  };
   const sugeridos=useMemo(()=>clientes.filter(c=>coincideCliente(c,quote.cliente.razonSocial)).slice(0,7),[clientes,quote.cliente.razonSocial]);
   const preciosPrevios=useMemo(()=>Object.fromEntries(quote.items.map(item=>[
     item.id,ultimoPrecioCliente(historial,clienteId,item,quote.cliente.razonSocial)
@@ -107,7 +126,10 @@ export default function PresupuestosPDF() {
       }else transaccion.set(referencia,{...original,guardadoEn:serverTimestamp()});
     });
   };
-  const updateLine=(id,key,value)=>setQuote(q=>({...q,items:q.items.map(i=>i.id===id?{...i,[key]:value}:i)}));
+  const updateLine=(id,key,value)=>{
+    if(key==='precioUnitario')setPreciosParaRevisar(old=>old.filter(x=>x!==id));
+    setQuote(q=>({...q,items:q.items.map(i=>i.id===id?{...i,[key]:value}:i)}));
+  };
   const addLine=()=>setQuote(q=>({...q,items:[...q.items,ITEM_VACIO()]}));
   const deleteLine=id=>setQuote(q=>({...q,items:q.items.length>1?q.items.filter(i=>i.id!==id):[ITEM_VACIO()]}));
   const recordNumber=()=> {
@@ -119,9 +141,9 @@ export default function PresupuestosPDF() {
     }
   };
   const newQuote=()=>{
-    const n=Math.max(getSequence(),Number(quote.numero?.split('-')[1]) + 1 || COTIZACION_INICIO);
+    const n=proximoNumeroDisponible(historial,Number(quote.numero?.split('-')[1]) + 1 || COTIZACION_INICIO,getSequence());
     try {localStorage.setItem(SERIE_KEY,String(n));}catch{/* Storage opcional */}
-    setClienteId('');setSugerencias(false);
+    setClienteId('');setSugerencias(false);setPreciosParaRevisar([]);
     setQuote({...initial(),numero:numeroCotizacion(n)});
     setError('');setNotice('Nuevo presupuesto listo.');
   };
@@ -166,9 +188,44 @@ export default function PresupuestosPDF() {
         <h2 className="text-2xl sm:text-3xl font-black text-slate-800">Presupuestos</h2>
         <p className="text-sm text-slate-500 mt-1">Generá presupuestos en PDF con el formato comercial de SII PALLETS.</p>
       </div>
-      <button type="button" onClick={newQuote} className="px-4 py-2.5 rounded-xl border border-blue-200 text-blue-800 bg-white font-bold text-sm hover:bg-blue-50">+ Nuevo presupuesto</button>
+      <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+        <button type="button" onClick={()=>setMostrarGuardados(v=>!v)} aria-expanded={mostrarGuardados}
+          className={'sii-pro-button-secondary flex-1 sm:flex-none '+(mostrarGuardados?'!bg-blue-50 !border-blue-300':'')}>
+          {mostrarGuardados?'Ocultar presupuestos':'Presupuestos guardados'} <span className="ml-1 text-xs opacity-70">({historial.length})</span>
+        </button>
+        <button type="button" onClick={newQuote} className="sii-pro-button-primary flex-1 sm:flex-none">+ Nuevo presupuesto</button>
+      </div>
     </div>
-    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-4 items-start">
+    {mostrarGuardados && <section className="bg-white border border-slate-200 rounded-3xl shadow-sm p-4 sm:p-6 space-y-4">
+      <div>
+        <h3 className="text-lg font-black text-slate-900">Presupuestos por cliente</h3>
+        <p className="text-xs text-slate-500 mt-1">Elegí un cliente y copiá el presupuesto que quieras volver a cotizar.</p>
+      </div>
+      {gruposGuardados.length===0?<p className="text-sm text-slate-500 p-4 bg-slate-50 rounded-xl">Todavía no hay presupuestos guardados en esta base.</p>:
+      <div className="grid gap-2">
+        {gruposGuardados.map(grupo=><div key={grupo.clave} className="border border-slate-200 rounded-2xl overflow-hidden">
+          <button type="button" aria-expanded={clienteGuardadoAbierto===grupo.clave}
+            onClick={()=>setClienteGuardadoAbierto(v=>v===grupo.clave?'':grupo.clave)}
+            className="w-full flex items-center justify-between gap-3 p-4 bg-slate-50 hover:bg-blue-50 text-left">
+            <div className="min-w-0"><strong className="block text-sm sm:text-base text-slate-900 break-words">{grupo.nombre}</strong>
+              <p className="text-xs text-slate-500">{grupo.presupuestos.length} presupuesto(s)</p></div>
+            <span className="text-blue-700 font-black text-xl shrink-0">{clienteGuardadoAbierto===grupo.clave?'−':'+'}</span>
+          </button>
+          {clienteGuardadoAbierto===grupo.clave&&<div className="divide-y divide-slate-100">
+            {grupo.presupuestos.map(p=><div key={p.id||p.numero} className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between p-3 sm:p-4 bg-white">
+              <div className="min-w-0">
+                <strong className="block text-sm text-slate-800">{p.numero||'Sin número'}</strong>
+                <span className="block text-xs text-slate-500 mt-1">{fechaAR(p.fecha)} · {p.items?.length||0} ítem(s) · {p.cuenta==='2'?'Cuenta 2':'Cuenta 1'}</span>
+                <strong className="block text-sm text-blue-800 mt-1">{peso(Number(p.totalCentavos)||0)}</strong>
+              </div>
+              <button type="button" onClick={()=>copiarGuardado(p)}
+                className="sii-pro-button-primary w-full sm:w-auto shrink-0">Copiar presupuesto</button>
+            </div>)}
+          </div>}
+        </div>)}
+      </div>}
+    </section>}
+    <div id="sii-presupuesto-editor" className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-4 items-start">
       <section className="space-y-4 min-w-0">
         <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
           <div className="flex items-center justify-between gap-3"><h3 className="font-extrabold text-slate-800">1. Datos del presupuesto</h3><span className="text-[11px] text-slate-500">Datos del emisor fijos</span></div>
@@ -243,7 +300,12 @@ export default function PresupuestosPDF() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <label><span className={label}>Unidades *</span><input className={input} type="number" inputMode="decimal" min=".001" step="any" value={row.cantidad} onChange={e=>updateLine(row.id,'cantidad',e.target.value)}/></label>
                 <label><span className={label}>Bultos</span><input className={input} type="number" inputMode="decimal" min="0" step="any" value={row.bultos} onChange={e=>updateLine(row.id,'bultos',e.target.value)}/></label>
-                <label className="col-span-2"><span className={label}>Precio unitario ($) *</span><input className={input} type="number" inputMode="decimal" min="0" step="0.01" placeholder="0,00" value={row.precioUnitario} onChange={e=>updateLine(row.id,'precioUnitario',e.target.value)}/></label>
+                <label className="col-span-2">
+                  <span className={label}>Precio unitario ($) * {preciosParaRevisar.includes(row.id)&&<strong className="text-rose-700">· REVISAR PRECIO COPIADO</strong>}</span>
+                  <input className={input+(preciosParaRevisar.includes(row.id)?' sii-presupuesto-precio-alerta':'')} type="number" inputMode="decimal" min="0" step="0.01" placeholder="0,00" value={row.precioUnitario} onChange={e=>updateLine(row.id,'precioUnitario',e.target.value)}/>
+                  {preciosParaRevisar.includes(row.id)&&<button type="button" onClick={()=>setPreciosParaRevisar(v=>v.filter(id=>id!==row.id))}
+                    className="text-xs text-rose-800 font-bold mt-2 underline underline-offset-2">Revisé el precio: mantenerlo</button>}
+                </label>
               </div>
               {preciosPrevios[row.id]&&<div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-between bg-blue-50 border border-blue-200 rounded-xl px-3 py-3">
                 <div className="min-w-0">

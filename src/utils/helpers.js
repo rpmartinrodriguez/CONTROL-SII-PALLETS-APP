@@ -1,3 +1,4 @@
+import { abrirVisorImpresion } from './visorImpresion';
 // Archivo: src/utils/helpers.js
 
 export const getDays = (date) => { 
@@ -83,18 +84,7 @@ export const handleReportAction = (title, bodyContent, action, filename) => {
     `;
 
     if (action === 'print') {
-        const htmlString = `<html><head><title>${title}</title><style>${reportCSS}</style></head><body><div class="report-container">${bodyContent}</div></body></html>`;
-        const printWindow = window.open('', '_blank');
-        if (printWindow) {
-            printWindow.document.write(htmlString);
-            printWindow.document.close();
-            printWindow.focus();
-            setTimeout(() => { 
-                printWindow.print(); 
-            }, 500);
-        } else {
-            alert("Por favor, permite las ventanas emergentes (pop-ups) en tu navegador para imprimir.");
-        }
+        abrirVisorImpresion({ titulo: title, contenido: bodyContent, css: reportCSS, nombreArchivo: filename });
     } else if (action === 'download') {
         if (typeof window.html2pdf === 'undefined') {
             alert("La librería de PDF se está cargando. Por favor, espera un momento y vuelve a intentar.");

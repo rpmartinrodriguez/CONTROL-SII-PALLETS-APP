@@ -25,10 +25,18 @@ const PresupuestosPDF = lazy(() => import('./pages/PresupuestosPDF'));
 const TransferenciaFirestore = lazy(() => import('./pages/TransferenciaFirestore'));
 import { conectarBasesOriginales } from './utils/conectarFirebaseOriginales';
 import { solicitarChequeoPush } from './utils/pushClient';
+import { abrirVisorImpresion } from './utils/visorImpresion';
 
 
 export default function App() {
-    const [mode, setMode] = useState(() => (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('migracion') === '1' ? 'migration' : 'pay')); // Inicia en la nueva pestaña de Pagos
+    const [mode, setMode] = useState(() => (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('migracion') === '1' ? 'migration' : 'collect'));
+    const [sidebarMinimizado,setSidebarMinimizado]=useState(()=>{
+        try{return window.localStorage.getItem('sii-sidebar-minimizado-v1')==='true';}
+        catch{return false;}
+    });
+    useEffect(()=>{
+        try{window.localStorage.setItem('sii-sidebar-minimizado-v1',String(sidebarMinimizado));}catch{}
+    },[sidebarMinimizado]); // Inicia en la nueva pestaña de Pagos
     const pagosAvanzados = usePagosReales(true); // Indicadores de Pagos Avanzados y Balance comparten un único lector
     const pagosIframeRef = useRef(null);
     const [user, setUser] = useState(null); 
@@ -65,6 +73,7 @@ export default function App() {
     const [expandedGroups, setExpandedGroups] = useState({});
     const [searchTerm, setSearchTerm] = useState("");
     const [showNotifPanel, setShowNotifPanel] = useState(false);
+    const [focoPago, setFocoPago] = useState('');
     const [notifPermission, setNotifPermission] = useState(typeof Notification !== 'undefined' ? Notification.permission : 'default');
     const [selectedDateFilter, setSelectedDateFilter] = useState(null);
     const [showCalendar, setShowCalendar] = useState(false);
@@ -1010,6 +1019,49 @@ export default function App() {
         if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'auto' });
     };
 
+    // La campanita lleva a la sección y, cuando hay una referencia disponible,
+    // la busca en el listado correspondiente. No modifica registros financieros.
+    const abrirDesdeNotificacion = (aviso) => {
+        if(aviso?.tipo === 'cobro' || aviso?.categoria?.includes('collect')){
+            changeMode('collect');
+            setActiveFilter('all');
+            setSelectedDateFilter(null);
+            const item=collectItems.find(x=>String(x.id)===String(aviso.movimientoId||''));
+            const pista=item?.number || item?.payee || (aviso.detalle||'').split(' · ')[0];
+            setSearchTerm(String(pista||'').slice(0,100));
+        } else {
+            changeMode('pay');
+            const pista=(aviso.detalle||'').split(' · ')[0]||aviso.movimientoId||'';
+            setFocoPago(String(pista).slice(0,100));
+        }
+    };
+
+    useEffect(()=>{
+        if(mode!=='pay'||!focoPago)return undefined;
+        const enviar=()=>pagosIframeRef.current?.contentWindow?.postMessage({
+            type:'SII_FOCUS_PAYMENT_V1',text:focoPago
+        },window.location.origin);
+        const id=setTimeout(enviar,250);
+        return ()=>clearTimeout(id);
+    },[mode,focoPago]);
+
+    useEffect(()=>{
+        const recibirReporte=event=>{
+            if(event.origin!==window.location.origin ||
+               event.source!==pagosIframeRef.current?.contentWindow ||
+               event.data?.type!=='SII_PRINT_REPORT_V1')return;
+            const html=String(event.data.html||'').slice(0,350000);
+            if(!html)return;
+            abrirVisorImpresion({
+                titulo:String(event.data.titulo||'Reporte de Pagos').slice(0,110),
+                contenido:html,nombreArchivo:String(event.data.nombre||'Pagos').slice(0,100),
+                css:'body,.report-container{font-family:Arial,sans-serif;color:#1f2937;font-size:12px;line-height:1.5;background:#fff}h2{font-size:17px;color:#174f9b;margin-bottom:12px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{border-bottom:1px solid #dbe3ed;padding:7px;text-align:left;vertical-align:top}th{background:#eff6ff;font-weight:bold}.no-print,button,.close-modal{display:none!important}.amount{text-align:right}.modal-content,.modal-body{padding:8px;width:100%;box-shadow:none;border:0}'
+            });
+        };
+        window.addEventListener('message',recibirReporte);
+        return ()=>window.removeEventListener('message',recibirReporte);
+    },[]);
+
     // Abre el registro exacto desde el desglose de IVA, sin crear otra factura.
     const abrirFacturaDesdeFacturacion = (factura) => {
         changeMode('collect');
@@ -1027,10 +1079,11 @@ export default function App() {
 
     // EL TRUCO 100% PANTALLA COMPLETA: w-full min-h-screen sin límites
     return (
-        <div className="sii-pro-app w-full min-h-screen relative pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-8">
-            <ProWorkspace mode={mode} onNavigate={changeMode}
-              collectItems={collectItems} payItems={payItems} pagosAvanzados={pagosAvanzados} alerts={alerts}
-              searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
+        <div className={'sii-pro-app w-full min-h-screen relative pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-8'+(sidebarMinimizado?' sii-sidebar-collapsed':'')}>
+            <ProWorkspace mode={mode} onNavigate={changeMode} onOpenNotification={abrirDesdeNotificacion}
+              collectItems={collectItems} payItems={payItems} pagosAvanzados={pagosAvanzados}
+              searchTerm={searchTerm} setSearchTerm={setSearchTerm}
+              sidebarMinimizado={sidebarMinimizado} setSidebarMinimizado={setSidebarMinimizado} />
             {/* Contenedor sin márgenes estrictos */}
             <div className="sii-pro-main">
                 
@@ -1038,7 +1091,7 @@ export default function App() {
                 {/* PORTAL A PANTALLA COMPLETA: APLICACIÓN AVANZADA DE PAGOS */}
                 {mode === 'pay' && (
                     <div className="w-full h-[calc(100dvh-190px)] min-h-[320px] md:h-[calc(100vh-140px)] bg-white sm:rounded-2xl shadow-xl overflow-hidden animate-fade-in border-0 sm:border border-gray-200">
-                        <iframe ref={pagosIframeRef} src="/pagos.html" title="Control de Pagos Avanzado — prueba de categorías" className="w-full h-full border-none outline-none bg-[#f8fafc]"></iframe>
+                        <iframe ref={pagosIframeRef} src="/pagos.html" title="Control de Pagos Avanzado" onLoad={()=>{if(focoPago)pagosIframeRef.current?.contentWindow?.postMessage({type:'SII_FOCUS_PAYMENT_V1',text:focoPago},window.location.origin);}} className="w-full h-full border-none outline-none bg-[#f8fafc]"></iframe>
                     </div>
                 )}
 

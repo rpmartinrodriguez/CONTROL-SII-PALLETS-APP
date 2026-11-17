@@ -71,25 +71,26 @@ export default function Movimientos({
                             </span>
                         </div>
                     </div>
-                    <div className="w-full sm:w-auto flex justify-between sm:justify-end items-center gap-4 pl-0 sm:pl-3 border-t sm:border-t-0 pt-2 sm:pt-0 mt-2 sm:mt-0">
-                        <div className="text-right">
-                            <div className="font-black text-lg sm:text-xl text-slate-900 tracking-tight tabular-nums break-all">{formatMoney(item.amount)}</div>
+                    <div className="w-full sm:w-auto flex flex-col sm:flex-row sm:justify-end sm:items-center gap-3 sm:gap-4 pl-0 sm:pl-3 border-t sm:border-t-0 pt-3 sm:pt-0 mt-2 sm:mt-0">
+                        <div className="w-full sm:w-auto text-left sm:text-right min-w-0 rounded-xl bg-slate-50 sm:bg-transparent p-3 sm:p-0">
+                            <p className="text-[10px] sm:hidden font-extrabold uppercase tracking-wide text-slate-500 mb-1">Importe del movimiento</p>
+                            <div className="sii-amount-value font-black text-slate-900 tracking-tight tabular-nums">{formatMoney(item.amount)}</div>
                             {(isPartial || (isPaid && item.paidAmount < item.amount)) && (
                                 <div className="text-[10px] text-red-500 font-bold">Resta: {formatMoney(item.amount - (item.paidAmount || 0))}</div>
                             )}
                         </div>
-                        <div className="flex flex-wrap gap-1.5 justify-end">
+                        <div className="sii-movement-actions grid grid-cols-3 sm:flex gap-2 sm:justify-end w-full sm:w-auto">
                             {!isPaid && (
-                                <button onClick={() => markFullPayment(item)} className="rounded-xl min-h-[36px] min-w-[36px] flex items-center justify-center bg-green-50 text-green-700 hover:bg-green-100" title="Marcar Pagado">
+                                <button onClick={() => markFullPayment(item)} className="sii-pro-action-btn rounded-xl flex items-center justify-center bg-green-50 text-green-700 hover:bg-green-100" title="Marcar Pagado">
                                     <IconCheck className="w-4 h-4"/>
                                 </button>
                             )}
                             {!isPaid && item.status !== 'paid' && mode !== 'expenses' && (
-                                <button onClick={() => markPartialPayment(item)} className="rounded-xl min-h-[36px] min-w-[36px] flex items-center justify-center bg-amber-50 text-amber-700 hover:bg-amber-100" title="Pago Parcial">
+                                <button onClick={() => markPartialPayment(item)} className="sii-pro-action-btn rounded-xl flex items-center justify-center bg-amber-50 text-amber-700 hover:bg-amber-100" title="Pago Parcial">
                                     $
                                 </button>
                             )}
-                            <button onClick={() => setHistoryModal({isOpen: true, item: item})} className="rounded-xl min-h-[36px] min-w-[36px] flex items-center justify-center bg-violet-50 text-violet-700 hover:bg-violet-100" title="Ver Historial de Pagos">
+                            <button onClick={() => setHistoryModal({isOpen: true, item: item})} className="sii-pro-action-btn rounded-xl flex items-center justify-center bg-violet-50 text-violet-700 hover:bg-violet-100" title="Ver Historial de Pagos">
                                 <IconEye className="w-4 h-4"/>
                             </button>
                             <button 
@@ -98,14 +99,14 @@ export default function Movimientos({
                                     const text = `Hola *${item.payee}*, aviso sobre ${action} (Ref: ${item.number || 'S/N'}) por *${formatMoney(item.amount)}* con fecha: ${new Date(item.dueDate+'T00:00:00').toLocaleDateString('es-AR')}. Saludos, SII PALLETS.`;
                                     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
                                 }} 
-                                className="rounded-xl min-h-[36px] min-w-[36px] flex items-center justify-center bg-emerald-50 text-emerald-700 hover:bg-emerald-100" title="Enviar WhatsApp"
+                                className="sii-pro-action-btn rounded-xl flex items-center justify-center bg-emerald-50 text-emerald-700 hover:bg-emerald-100" title="Enviar WhatsApp"
                             >
                                 <IconMessage className="w-4 h-4" />
                             </button>
-                            <button onClick={() => handleEdit(item)} className="rounded-xl min-h-[36px] min-w-[36px] flex items-center justify-center bg-blue-50 text-blue-700 hover:bg-blue-100" title="Editar">
+                            <button onClick={() => handleEdit(item)} className="sii-pro-action-btn rounded-xl flex items-center justify-center bg-blue-50 text-blue-700 hover:bg-blue-100" title="Editar">
                                 <IconPencil className="w-4 h-4"/>
                             </button>
-                            <button onClick={() => deleteItem(item)} className="rounded-xl min-h-[36px] min-w-[36px] flex items-center justify-center bg-rose-50 text-rose-700 hover:bg-rose-100" title="Eliminar">
+                            <button onClick={() => deleteItem(item)} className="sii-pro-action-btn rounded-xl flex items-center justify-center bg-rose-50 text-rose-700 hover:bg-rose-100" title="Eliminar">
                                 <IconTrash className="w-4 h-4"/>
                             </button>
                         </div>
@@ -177,7 +178,7 @@ export default function Movimientos({
                                 ? (payTab === 'realizados' ? 'Total Pagado' : 'Deuda Total Pendiente') 
                                 : (mode === 'wallet' ? 'Total en Cartera' : (mode === 'expenses' ? 'Total Gastos Mes' : 'Cobros Totales Pendientes'))}
                         </p>
-                        <p className="text-3xl font-black text-gray-800">
+                        <p className="sii-total-amount text-slate-900 font-black tabular-nums">
                             {mode === 'pay' 
                                 ? (payTab === 'realizados' ? formatMoney(totalRealizados) : formatMoney(balanceData.pay)) 
                                 : (mode === 'wallet' ? formatMoney(balanceData.wallet) : (mode === 'expenses' ? formatMoney(balanceData.expenses) : formatMoney(balanceData.collect)))}
@@ -203,7 +204,7 @@ export default function Movimientos({
                         >
                             <span className={`text-[10px] font-bold text-${filter.color}-600 uppercase`}>{filter.label}</span>
                             <span className="text-lg font-black text-gray-800 leading-tight">{filter.data.count}</span>
-                            <span className="text-[9px] text-gray-500 truncate w-full">{formatMoney(filter.data.total)}</span>
+                            <span className="text-[clamp(9px,2.4vw,12px)] leading-tight font-semibold text-slate-600 w-full tabular-nums break-words">{formatMoney(filter.data.total)}</span>
                             {activeFilter === filter.id && (
                                 <div className={`absolute -bottom-2 w-3 h-3 bg-${filter.color}-500 rotate-45 border-r border-b border-white`}></div>
                             )}
@@ -456,61 +457,56 @@ export default function Movimientos({
                 {groupedView && (groupedView.type === 'flat' ? groupedView.data.map(item => renderMovementCard(item)) : groupedView.data.map((group, idx) => {
                     const isClientGroup = groupedView.type === 'client-grouped';
                     return (
-                    <div key={idx} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-2">
-                        <button 
-                            onClick={() => setExpandedGroups(p => ({...p, [group.key]: !p[group.key]}))} 
-                            className="w-full p-3 flex justify-between items-center bg-gray-50 hover:bg-gray-100 transition"
-                        >
-                            <div className="flex items-center gap-3">
+                    <div key={idx} className="sii-client-card bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-3">
+                        <div className="sii-client-card-layout">
+                            <button type="button"
+                                aria-expanded={Boolean(expandedGroups[group.key])}
+                                aria-label={(expandedGroups[group.key]?'Contraer ':'Desplegar ')+String(group.label||'grupo')}
+                                onClick={()=>setExpandedGroups(p=>({...p,[group.key]:!p[group.key]}))}
+                                className="sii-client-card-toggle text-left">
                                 {isClientGroup ? (
-                                    <div className={`bg-emerald-100 text-emerald-700 font-bold rounded-full p-2 w-10 h-10 flex items-center justify-center shrink-0`}>
+                                    <span className="bg-emerald-100 text-emerald-700 rounded-xl w-11 h-11 shrink-0 flex items-center justify-center">
                                         <IconUserGroup className="w-5 h-5"/>
-                                    </div>
+                                    </span>
                                 ) : (
-                                    <div className={`${theme.light} ${theme.text} font-bold rounded-lg p-2 text-center min-w-[50px]`}>
+                                    <span className={theme.light+' '+theme.text+' rounded-xl p-2 text-center min-w-[50px]'}>
                                         <span className="block text-xs uppercase">
-                                            {group.label && group.label.includes(' ') ? group.label.split(' ')[0] : new Date(group.key + 'T00:00:00').toLocaleDateString('es-AR', {month:'short'})}
+                                            {group.label && group.label.includes(' ') ? group.label.split(' ')[0] : new Date(group.key+'T00:00:00').toLocaleDateString('es-AR',{month:'short'})}
                                         </span>
-                                        <span className="block text-xl leading-none">
-                                            {group.key.includes('-') && group.key.length === 7 ? '' : new Date(group.key + 'T00:00:00').getDate()}
+                                        <span className="block text-lg font-black">
+                                            {group.key.includes('-') && group.key.length===7 ? '' : new Date(group.key+'T00:00:00').getDate()}
                                         </span>
-                                    </div>
+                                    </span>
                                 )}
-                                <div className="text-left overflow-hidden">
-                                    <p className="text-sm font-bold text-gray-700 truncate">
-                                        {groupedView.type === 'client-grouped' || mode === 'expenses' ? group.label : `${group.items.length} Items`}
-                                    </p>
-                                    {(groupedView.type === 'client-grouped' || mode === 'expenses') && (
-                                        <p className="text-xs text-gray-500">
-                                            {group.count} {mode === 'pay' && payTab === 'realizados' ? 'Pagados' : 'Pendientes'}
-                                        </p>
-                                    )}
+                                <span className="sii-client-card-name">
+                                    <strong className="text-sm sm:text-base font-black text-slate-900 break-words leading-snug">{groupedView.type==='client-grouped'||mode==='expenses'?group.label:`${group.items.length} ítems`}</strong>
+                                    {(groupedView.type==='client-grouped'||mode==='expenses')&&<small className="block mt-1 text-xs font-medium text-slate-500">{group.count} {mode==='pay'&&payTab==='realizados'?'pagados':'pendientes'}</small>}
+                                </span>
+                            </button>
+                            <div className="sii-client-card-bottom">
+                                <div className="sii-client-card-amount">
+                                    <span className="text-[10px] uppercase font-extrabold tracking-wider text-slate-500 sm:hidden">Saldo del cliente</span>
+                                    <strong className="text-slate-900 tabular-nums">{formatMoney(group.total)}</strong>
+                                </div>
+                                <div className="sii-client-card-controls">
+                                    {isClientGroup&&<>
+                                        <button type="button" onClick={()=>triggerClientReport(group,'print')}
+                                            className="sii-client-card-icon" aria-label={'Imprimir estado de '+group.label} title="Imprimir estado">
+                                            <IconPrinter className="w-5 h-5"/>
+                                        </button>
+                                        <button type="button" onClick={()=>triggerClientReport(group,'download')}
+                                            className="sii-client-card-icon" aria-label={'Descargar PDF de '+group.label} title="Descargar PDF">
+                                            <IconDownload className="w-5 h-5"/>
+                                        </button>
+                                    </>}
+                                    <button type="button" onClick={()=>setExpandedGroups(p=>({...p,[group.key]:!p[group.key]}))}
+                                        aria-expanded={Boolean(expandedGroups[group.key])} aria-label={'Ver comprobantes de '+String(group.label||'grupo')}
+                                        className="sii-client-card-icon sii-client-expand">
+                                        <IconChevronDown className={`w-5 h-5 transition-transform ${expandedGroups[group.key]?'rotate-180':''}`}/>
+                                    </button>
                                 </div>
                             </div>
-                            <div className="text-right flex items-center gap-2">
-                                <p className="text-lg font-black text-gray-800">{formatMoney(group.total)}</p>
-                                {isClientGroup && (
-                                    <div className="flex gap-1 ml-2 border-l pl-2">
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); triggerClientReport(group, 'print'); }} 
-                                            className="p-1.5 rounded-lg bg-gray-100 hover:bg-emerald-100 text-gray-400 hover:text-emerald-700 transition-colors" 
-                                            title="Imprimir Estado"
-                                        >
-                                            <IconPrinter className="w-4 h-4" />
-                                        </button>
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); triggerClientReport(group, 'download'); }} 
-                                            className="p-1.5 rounded-lg bg-gray-100 hover:bg-emerald-100 text-gray-400 hover:text-emerald-700 transition-colors" 
-                                            title="Descargar PDF"
-                                        >
-                                            <IconDownload className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                )}
-                                <IconChevronDown className={`w-5 h-5 text-gray-400 transition-transform ml-1 ${expandedGroups[group.key] ? 'rotate-180' : ''}`} />
-                            </div>
-                        </button>
-                        
+                        </div>
                         {/* CONTENIDO DESPLEGADO DEL CLIENTE/FECHA */}
                         {expandedGroups[group.key] && (
                             <div className="border-t border-gray-100 animate-fade-in bg-gray-50 p-2 space-y-2">

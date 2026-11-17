@@ -1125,6 +1125,11 @@
         }
 
         window.printResumen = function() {
+            if (window.parent!==window) {
+                const node=document.querySelector('.resumen-wrapper');
+                if(node)window.parent.postMessage({type:'SII_PRINT_REPORT_V1',titulo:'SII PALLETS · Resumen de Pagos',html:node.outerHTML,nombre:'Resumen_Pagos'},window.location.origin);
+                return;
+            }
             document.body.classList.add('print-resumen-only');
             window.print();
             setTimeout(() => document.body.classList.remove('print-resumen-only'), 500);
@@ -1463,6 +1468,19 @@
             },window.location.origin);
         };
 
+        // Abrir un pago desde el ojito de la campanita del panel SII PRO.
+        window.addEventListener('message', function(event) {
+            if(event.origin!==window.location.origin || event.source!==window.parent ||
+               event.data?.type!=='SII_FOCUS_PAYMENT_V1') return;
+            const q=String(event.data.text||'').slice(0,100);
+            if(!q)return;
+            const input=document.getElementById('search-nombre');
+            if(!input)return;
+            input.value=q;
+            input.dispatchEvent(new Event('input',{bubbles:true}));
+            input.focus();
+        });
+
         window.addEventListener('message', function(event) {
             if (event.origin !== window.location.origin || event.source !== window.parent ||
                 event.data?.type !== 'SII_CATEGORIAS_EXPORT_RESULT_V1') return;
@@ -1493,6 +1511,12 @@
                 return s;
             },{total:0,pagado:0,pendiente:0});
             const rows=values.map(cols=>'<tr>'+cols.map((v,i)=>'<td'+(i?' class="amount"':'')+'>'+clean(v)+'</td>').join('')+'</tr>').join('');
+            if(window.parent!==window){
+                const contenido='<h2>SII PALLETS · Pagos por categoría</h2><table><thead><tr><th>Categoría</th><th>Total histórico</th><th>Pagado</th><th>Deuda pendiente</th></tr></thead><tbody>'+
+                    rows+'</tbody><tfoot><tr><td>TOTAL</td><td>'+clean(formatCur(sums.total))+'</td><td>'+clean(formatCur(sums.pagado))+'</td><td>'+clean(formatCur(sums.pendiente))+'</td></tr></tfoot></table>';
+                window.parent.postMessage({type:'SII_PRINT_REPORT_V1',titulo:'SII PALLETS · Pagos por categoría',html:contenido,nombre:'Pagos_Categoria'},window.location.origin);
+                return;
+            }
             const popup=window.open('','_blank');
             if (!popup) {
                 alert('Permití las ventanas emergentes para imprimir.');
@@ -1513,6 +1537,16 @@
         window.closeModal = function(id) { document.getElementById(id).style.display = 'none'; };
         
         window.printModal = function() {
+            if (window.parent!==window) {
+                const modal=[...document.querySelectorAll('.modal')].find(x=>window.getComputedStyle(x).display!=='none');
+                const node=modal?.querySelector('.modal-content');
+                if(node)window.parent.postMessage({
+                    type:'SII_PRINT_REPORT_V1',
+                    titulo:'SII PALLETS · '+(node.querySelector('h2')?.textContent||'Historial de Pago'),
+                    html:node.outerHTML,nombre:'Historial_Pagos'
+                },window.location.origin);
+                return;
+            }
             document.body.classList.add('print-modal-active');
             window.print();
             setTimeout(() => {
