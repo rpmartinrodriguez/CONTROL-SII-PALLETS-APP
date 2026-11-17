@@ -906,13 +906,19 @@
             setTimeout(() => loader.style.display = 'none', 500);
         }
 
-        async function persistCheques() {
+        async function persistCheques(notificacion = null) {
             loader.style.display = 'block';
             try {
                 await setDoc(doc(db, "finanzas", "cheques"), { data: cheques });
-                // La app contenedora comprueba los cambios desde el servidor Netlify.
-                // No se envían importes ni nombres por postMessage.
-                if (window.parent !== window) window.parent.postMessage({type:'SII_PAGOS_GUARDADOS_V1'}, window.location.origin);
+                // Enviar solo el ID después de guardar; el servidor valida el pago en Firebase.
+                if (notificacion && window.parent !== window) {
+                    window.parent.postMessage({
+                        type:'SII_PAGOS_GUARDADOS_V1',
+                        kind:'pago_avanzado',
+                        id:String(notificacion.id),
+                        action:notificacion.action
+                    },window.location.origin);
+                }
             }
             catch(err) { console.error("Error guardando cheques:", err); }
             setTimeout(() => loader.style.display = 'none', 500);
@@ -1557,13 +1563,15 @@
         window.changeEstadoInline = function(id, nuevoEstado) {
             let c = cheques.find(x => x.id === id);
             if(c) {
+                const previamentePagado=c.estado==='PAGADO';
                 c.estado = nuevoEstado;
                 if(nuevoEstado === 'PAGADO') {
                     c.fechaPagado = document.getElementById('fecha-actual').value;
+                    if(!previamentePagado)c.modificadoEn=new Date().toISOString();
                 } else {
                     c.fechaPagado = null;
                 }
-                persistCheques();
+                persistCheques(nuevoEstado==='PAGADO'&&!previamentePagado?{id:c.id,action:'payment'}:null);
             }
         };
 
@@ -1744,14 +1752,23 @@
                 fechaPagado: fechaPagadoVal
             };
 
+            let notificacion = null;
             if (id) {
                 let idx = cheques.findIndex(c => c.id == id);
-                cheques[idx] = { id: parseInt(id), ...data };
+                if(idx<0)return;
+                const anterior=cheques[idx];
+                const nuevo={...anterior,...data,id:parseInt(id)};
+                if(data.estado==='PAGADO'&&anterior.estado!=='PAGADO'){
+                    nuevo.modificadoEn=new Date().toISOString();
+                    notificacion={id:nuevo.id,action:'payment'};
+                }
+                cheques[idx]=nuevo;
             } else {
                 const newId = cheques.length > 0 ? Math.max(...cheques.map(c => c.id)) + 1 : 1;
-                cheques.push({ id: newId, ...data });
+                cheques.push({ id: newId, ...data, creadoEn:new Date().toISOString() });
+                notificacion={id:newId,action:'create'};
             }
-            persistCheques(); 
+            persistCheques(notificacion); 
             window.closeModal('cheque-modal');
         };
 
@@ -1760,10 +1777,10 @@
             if (!original) return;
             
             const newId = cheques.length > 0 ? Math.max(...cheques.map(c => c.id)) + 1 : 1;
-            const duplicated = { ...original, id: newId };
-            
+            const duplicated = { ...original, id: newId, creadoEn:new Date().toISOString() };
+            delete duplicated.modificadoEn;
             cheques.push(duplicated);
-            persistCheques();
+            persistCheques({id:newId,action:'create'});
         };
 
         window.editCheque = function(id) {
