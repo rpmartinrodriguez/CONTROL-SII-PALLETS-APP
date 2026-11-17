@@ -8,7 +8,7 @@ export default function Caja({ cashData, showAddForm, setShowAddForm, newItem, s
             <div className={`bg-white p-5 rounded-2xl shadow-md border-l-8 mb-6 flex items-center justify-between border-cyan-500`}>
                 <div>
                     <p className={`text-xs font-bold uppercase tracking-wide mb-1 text-cyan-600`}>Saldo en Caja</p>
-                    <p className="text-3xl font-black text-gray-800">{formatMoney(cashData.balance)}</p>
+                    <p className="text-[clamp(1.5rem,6vw,2.25rem)] font-black text-slate-900 tracking-tight tabular-nums break-all">{formatMoney(cashData.balance)}</p>
                 </div>
                 <div className={`bg-cyan-50 p-3 rounded-full`}>
                     <IconBox className={`w-8 h-8 text-cyan-600`} />
@@ -105,7 +105,42 @@ export default function Caja({ cashData, showAddForm, setShowAddForm, newItem, s
                         <div className="bg-gray-50 p-2 font-bold text-xs text-gray-600 uppercase border-b border-gray-100">
                             {group.label}
                         </div>
-                        <div>
+                        <div className="md:hidden divide-y divide-slate-100">
+                            {group.items.map(item=>(
+                              <article key={item.id} className="p-4 space-y-3">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-semibold text-slate-500">
+                                      {new Date(item.date+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'short',year:'numeric'})}
+                                    </p>
+                                    <p className="font-bold text-slate-900 text-sm mt-1 break-words">
+                                      {item.description || (item.cashType==='close'?'CIERRE DE CAJA':'Apertura')}
+                                    </p>
+                                  </div>
+                                  <span className={'shrink-0 rounded-lg px-2 py-1 text-[10px] font-extrabold ' +
+                                    (item.cashType==='expense'?'bg-rose-100 text-rose-800':'bg-emerald-100 text-emerald-800')}>
+                                    {item.cashType==='expense'?'EGRESO':item.cashType==='close'?'CIERRE':'INGRESO'}
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 bg-slate-50 rounded-xl p-3">
+                                  <div className="min-w-0">
+                                    <span className="block text-[10px] uppercase font-bold text-slate-500">Movimiento</span>
+                                    <strong className={'block text-base mt-1 tabular-nums break-all '+
+                                      (item.cashType==='expense'?'text-rose-700':'text-emerald-700')}>
+                                      {formatMoney(item.amount||0)}
+                                    </strong>
+                                  </div>
+                                  <div className="min-w-0 text-right">
+                                    <span className="block text-[10px] uppercase font-bold text-slate-500">Saldo</span>
+                                    <strong className="block text-base mt-1 font-black text-slate-900 tabular-nums break-all">
+                                      {formatMoney(item.balance)}
+                                    </strong>
+                                  </div>
+                                </div>
+                              </article>
+                            ))}
+                        </div>
+                        <div className="hidden md:block overflow-x-auto">
                             <div className="header-caja grid-caja">
                                 <div>FECHA</div>
                                 <div>DESCRIPCIÓN</div>

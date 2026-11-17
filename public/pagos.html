@@ -10,9 +10,9 @@
     <style>
         :root {
             /* Paleta Moderna - Estilo SaaS Profesional */
-            --primary: #4338ca;
-            --primary-light: #6366f1;
-            --primary-hover: #3730a3;
+            --primary: #1959c0;
+            --primary-light: #3183de;
+            --primary-hover: #104b9b;
             
             --success: #10b981;
             --success-bg: #d1fae5;
@@ -271,6 +271,38 @@
         .form-group input:focus, .form-group select:focus { border-color: var(--primary-light); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15); }
 
         #fb-loader { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); background: var(--primary); color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; z-index: 9999; box-shadow: var(--shadow-md); display: none; }
+
+        /* SII PALLETS PRO — Pagos Avanzados responsive real */
+        @media (max-width: 767px) {
+            body { height: 100dvh; padding: 7px; overflow: hidden; gap: 7px; }
+            header { padding: 10px; gap: 10px; align-items: start; }
+            .header-left, .header-right { width: 100%; flex-wrap: wrap; justify-content: space-between; min-width: 0; }
+            .header-left { gap: 7px; }
+            .global-search { width: 100%; flex: 1 1 100%; margin: 0 !important; }
+            .search-input { width: 100%; min-height: 40px; font-size: 16px; }
+            .date-control input { font-size: 14px; max-width: 145px; }
+            .header-right .btn { min-height: 38px; padding: 8px 10px; }
+            .tab-content.active { overflow: auto; flex: 1 1 0; min-height: 0; -webkit-overflow-scrolling: touch; }
+            .top-panel { flex-direction: column; max-height: none; flex: none; gap: 8px; }
+            .panel-box { width: 100%; flex: none; min-height: 90px; max-height: 200px; padding: 10px; }
+            .bancos-wrapper { max-height: 180px; }
+            .resumen-wrapper { max-height: 155px; }
+            .inner-table-wrapper { min-height: 0; overflow: auto; }
+            .bancos-table { min-width: 465px; }
+            .table-container { flex: none; min-height: 270px; max-height: 68dvh; overflow: auto; -webkit-overflow-scrolling: touch; }
+            table.main-table { min-width: 860px; font-size: 12px; }
+            table.main-table th, table.main-table td { padding: 11px 9px; }
+            .form-grid { grid-template-columns: minmax(0,1fr); gap: 10px; }
+            .form-group.full-width { grid-column: 1; }
+            .modal { padding: 9px; }
+            .modal-content { padding: 16px; max-height: 95dvh; width: 100%; }
+            .btn-icon { min-height: 36px; min-width: 36px; justify-content: center; }
+        }
+        @media (max-width: 360px) {
+            header h1 { font-size: 14px; }
+            .header-right .btn { font-size: 11px; padding: 8px; }
+            .date-control { font-size: 11px; }
+        }
 
         /* --- ESTILOS DE IMPRESIÓN --- */
         @media print {
@@ -876,7 +908,12 @@
 
         async function persistCheques() {
             loader.style.display = 'block';
-            try { await setDoc(doc(db, "finanzas", "cheques"), { data: cheques }); }
+            try {
+                await setDoc(doc(db, "finanzas", "cheques"), { data: cheques });
+                // La app contenedora comprueba los cambios desde el servidor Netlify.
+                // No se envían importes ni nombres por postMessage.
+                if (window.parent !== window) window.parent.postMessage({type:'SII_PAGOS_GUARDADOS_V1'}, window.location.origin);
+            }
             catch(err) { console.error("Error guardando cheques:", err); }
             setTimeout(() => loader.style.display = 'none', 500);
         }

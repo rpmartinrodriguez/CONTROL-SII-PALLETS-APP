@@ -26,3 +26,143 @@ input, select, textarea { font-size: 16px !important; }
 /* Calendario Styles */
 .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
 .calendar-day { min-height: 90px; font-size: 10px; position: relative; }
+
+
+/* SII PALLETS PRO — navegación móvil y ergonomía iPhone / Android */
+.sii-mobile-dock { position: fixed; inset: auto 0 0 0; z-index: 45; pointer-events: none; }
+.sii-mobile-tabs {
+  pointer-events: auto;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  background: rgba(255,255,255,.98);
+  border-top: 1px solid #e2e8f0;
+  box-shadow: 0 -8px 28px rgba(15,23,42,.10);
+  padding: 6px max(8px,env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+.sii-mobile-tab {
+  min-height: 52px;
+  border-radius: 14px;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 3px;
+  transition: background-color .15s ease, color .15s ease;
+  touch-action: manipulation;
+}
+.sii-mobile-tab-active { background: #eff6ff; color: #1d4ed8; }
+.sii-mobile-tab:focus-visible, .sii-mobile-more-item:focus-visible { outline: 3px solid #60a5fa; outline-offset: 2px; }
+.sii-mobile-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.35); z-index: -2; pointer-events: auto; }
+.sii-mobile-more {
+  pointer-events: auto;
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(75px + env(safe-area-inset-bottom));
+  background: white;
+  color: #0f172a;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  padding: 16px;
+  box-shadow: 0 16px 48px rgba(15,23,42,.22);
+  max-height: min(70dvh, 540px);
+  overflow-y: auto;
+}
+.sii-mobile-more-item { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 10px; min-height: 78px; padding: 12px; border-radius: 14px; border: 1px solid #e2e8f0; font-size: 12px; font-weight: 800; text-align: left; background: #f8fafc; touch-action: manipulation; }
+.sii-mobile-more-item-active { color: #1d4ed8; background: #eff6ff; border-color: #93c5fd; }
+@media (prefers-reduced-motion: reduce) {
+  .sii-mobile-tab, .animate-fade-in, .accordion-content { transition: none !important; animation: none !important; }
+}
+
+/* SII PRO 2.0 — consistente desde 320 px hasta pantallas ultrawide */
+:root { font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #172338; }
+* { min-width: 0; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: #f2f6fb; }
+input, textarea, select, button { touch-action: manipulation; }
+button { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible { outline: 3px solid #60a5fa; outline-offset: 2px; }
+.sii-pro-app { background: radial-gradient(circle at 95% 0%, #e6efff, transparent 45%), #f1f5fb; min-height: 100dvh; }
+.sii-pro-sidebar {
+  position:fixed; top:0; bottom:0; left:0; width:252px; z-index:35;
+  background:linear-gradient(167deg, #101a2d 0%, #101d32 68%, #152746 100%);
+  color:white; flex-direction:column; padding:24px 14px; border-right:1px solid #1e3453;
+  box-shadow:10px 0 35px rgba(15,23,42,.08);
+}
+.sii-pro-brand { display:flex; gap:12px; align-items:center; padding:0 8px 24px; border-bottom:1px solid #2a3b57; }
+.sii-pro-nav-label { font-size:10px; color:#849bb7; letter-spacing:.17em; font-weight:800; padding:26px 14px 12px; }
+.sii-pro-navigation { display:flex; flex-direction:column; gap:5px; overflow-y:auto; min-height:0; scrollbar-width:thin; scrollbar-color:#31425b transparent; }
+.sii-pro-navitem { display:flex; align-items:center; gap:13px; width:100%; min-height:46px; text-align:left; border-radius:12px; padding:11px 15px; color:#aebed5; font-size:13px; font-weight:700; transition:all .16s; }
+.sii-pro-navitem:hover { background:#213454; color:white; transform:translateX(2px); }
+.sii-pro-navitem-active { background:linear-gradient(100deg,#1e57c3,#2178dc); color:white; box-shadow:0 4px 18px rgba(24,102,214,.25); }
+.sii-pro-navdot { width:6px; height:6px; background:#a7f3d0; border-radius:50%; margin-left:auto; flex-shrink:0; }
+.sii-pro-sidefoot { margin-top:auto; padding:18px 14px 0; border-top:1px solid #2a3b57; font-weight:800; font-size:10px; letter-spacing:.09em; color:#d1e4ff; }
+.sii-pro-live { width:7px; height:7px; background:#3dd89c; display:inline-block; border-radius:50%; box-shadow:0 0 0 3px rgba(61,216,156,.13); margin-right:6px; vertical-align:middle; }
+.sii-pro-topline { position:sticky; top:0; z-index:30; display:flex; justify-content:space-between; align-items:center; gap:12px; padding:13px clamp(14px,2.8vw,36px); background:rgba(255,255,255,.96); -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px); border-bottom:1px solid #dce5f2; }
+.sii-pro-eyebrow { display:block; color:#7690ab; letter-spacing:.1em; font-size:9px; font-weight:900; }
+.sii-pro-connection { color:#64748b; font-size:11px; font-weight:700; display:none; }
+.sii-pro-iconbtn { position:relative; height:41px; width:41px; display:flex; align-items:center; justify-content:center; border-radius:12px; background:#eff5fb; color:#273f64; }
+.sii-pro-count { position:absolute; right:-2px; top:-3px; border-radius:999px; background:#d83353; color:white; padding:1px 5px; font-size:10px; }
+.sii-pro-action { white-space:nowrap; font-weight:900; font-size:11px; padding:13px 14px; border-radius:12px; color:#fff; background:#1959c0; }
+.sii-pro-overlay-panel { position:fixed; z-index:51; right:14px; top:70px; width:min(420px,calc(100vw - 28px)); border-radius:18px; box-shadow:0 20px 60px rgba(15,23,42,.25); background:white; padding:18px; border:1px solid #e2e8f0; }
+.sii-pro-hero { position:relative; margin:clamp(12px,2vw,26px) clamp(12px,2.4vw,32px) 14px; padding:clamp(18px,3vw,32px); border-radius:24px; overflow:hidden; background:linear-gradient(112deg,#101f37,#163c70 60%,#0a5bb1); color:white; box-shadow:0 14px 35px rgba(22,59,116,.17); }
+.sii-pro-hero:before { content:''; position:absolute; width:390px; height:390px; top:-260px; right:-110px; border:1px solid rgba(255,255,255,.15); border-radius:50%; box-shadow:0 0 0 55px rgba(255,255,255,.025),0 0 0 115px rgba(255,255,255,.025); pointer-events:none; }
+.sii-pro-heroheader { position:relative; display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:14px; }
+.sii-pro-eyebrow-light { font-size:10px; font-weight:900; letter-spacing:.22em; color:#80b7ff; }
+.sii-pro-title { font-size:clamp(27px,4vw,42px); font-weight:900; letter-spacing:-.045em; line-height:1.12; margin-top:8px; overflow-wrap:anywhere; }
+.sii-pro-herotag { display:none; font-size:11px; background:rgba(255,255,255,.1); padding:10px 13px; border:1px solid rgba(255,255,255,.15); border-radius:12px; white-space:nowrap; font-weight:800; }
+.sii-pro-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:26px; position:relative; }
+.sii-pro-metric { background:rgba(255,255,255,.095); border:1px solid rgba(255,255,255,.14); border-radius:15px; padding:16px; overflow:hidden; }
+.sii-pro-metric-label { display:block; font-size:11px; color:#b9d7f7; font-weight:700; }
+.sii-pro-metric strong { display:block; margin:8px 0 4px; font-size:clamp(18px,2.4vw,25px); font-weight:900; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; letter-spacing:-.03em; }
+.sii-pro-metric-hint { font-size:10px; color:#a5c7ed; }
+.sii-pro-search { display:flex; align-items:center; gap:10px; margin:0 clamp(12px,2.4vw,32px) 12px; border:1px solid #d5e2f4; box-shadow:0 2px 10px rgba(18,49,92,.04); border-radius:15px; background:white; padding:13px 15px; }
+.sii-pro-search input { width:100%; min-width:0; color:#172338; outline:0; background:transparent; font-size:14px!important; }
+.sii-pro-main { max-width:1800px; margin:0 auto; padding:0 clamp(12px,2.4vw,32px) 28px; }
+.sii-pro-main>div, .sii-pro-main>section { min-width:0; }
+.sii-pro-main input:not([type=checkbox]):not([type=radio]), .sii-pro-main select, .sii-pro-main textarea { max-width:100%; }
+.sii-pro-main table { min-width:0; }
+.sii-pro-main :is(h1,h2,h3,h4) { overflow-wrap:anywhere; line-height:1.2; }
+.sii-pro-main :is([class*="text-2xl"],[class*="text-3xl"]) { letter-spacing:-.025em; }
+.sii-pro-main :is(.rounded-xl,.rounded-2xl) { border-color:#dce6f2; }
+.sii-pro-main input:focus,.sii-pro-main select:focus { outline-color:#2563eb; }
+.sii-pro-main .shadow-lg,.sii-pro-main .shadow-xl { box-shadow:0 8px 24px rgba(23,45,79,.07); }
+@media (min-width:768px) {
+  .sii-pro-connection { display:inline; }
+  .sii-pro-herotag { display:inline-flex; }
+}
+@media (max-width:767px) {
+  .sii-pro-topline { padding:11px 12px; }
+  .sii-pro-action { padding:12px 9px; font-size:10px; }
+  .sii-pro-hero { border-radius:20px; margin:10px 10px 12px; padding:18px 16px; }
+  .sii-pro-metrics { display:flex; overflow-x:auto; gap:9px; margin-top:19px; padding-bottom:4px; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; }
+  .sii-pro-metric { min-width:180px; flex:0 0 75%; scroll-snap-align:start; padding:13px 15px; }
+  .sii-pro-metric strong { font-size:clamp(18px,5vw,24px); }
+  .sii-pro-metric-label { font-size:11px; }
+  .sii-pro-search { margin:0 10px 10px; }
+  .sii-pro-main { padding:0 10px 18px; }
+  .sii-pro-main :is(.grid-caja) { width:100%; min-width:520px; }
+  .sii-pro-main :is(.modal-overlay) { padding:10px; }
+  .sii-pro-main :is(.modal-overlay)>div { max-height:calc(100dvh - 32px); overflow:auto; }
+}
+@media (max-width:360px) { .sii-pro-metric { flex-basis:87%; } .sii-pro-title { font-size:26px; } }
+@media (prefers-reduced-motion:reduce) { .sii-pro-navitem,.sii-pro-metrics { scroll-behavior:auto!important; transition:none!important; } }
+
+/* Sidebar fija en escritorio: el área de trabajo conserva siempre su ancho visible. */
+@media (min-width:768px) {
+  .sii-pro-topline { margin-left:252px; }
+  .sii-pro-hero { margin-left:calc(252px + clamp(12px,2vw,26px)); }
+  .sii-pro-search { margin-left:calc(252px + clamp(12px,2.4vw,32px)); }
+  .sii-pro-main { margin-left:252px; max-width:calc(100% - 252px); }
+}
+.sii-pro-main :is(.overflow-x-auto,.overflow-auto) { -webkit-overflow-scrolling:touch; }
+.sii-pro-main :is(table) td, .sii-pro-main :is(table) th { overflow-wrap:break-word; }
+
+/* Prioridad explícita sobre utilidades Tailwind: sidebar jamás cubre el móvil. */
+.sii-pro-sidebar { display:none; }
+@media (min-width:768px) { .sii-pro-sidebar { display:flex; } }

@@ -1,4 +1,7 @@
-import React, {useMemo,useState} from 'react';
+import React, {useEffect,useMemo,useState} from 'react';
+import { addDoc, collection, doc, onSnapshot, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { db } from '../firebase';
+import { coincideCliente, normalizarBusqueda, ultimoPrecioCliente } from '../utils/clientesPresupuesto';
 import { LOGO_PRESUPUESTO } from '../assets/logoPresupuesto';
 import {
   EMISOR,ITEM_VACIO,COTIZACION_INICIO,numeroCotizacion,fechaHoyLocal,
@@ -28,11 +31,82 @@ export default function PresupuestosPDF() {
   const [error,setError]=useState('');
   const [notice,setNotice]=useState('');
   const [showPreview,setShowPreview]=useState(true);
+  const [clientes,setClientes]=useState([]);
+  const [historial,setHistorial]=useState([]);
+  const [clienteId,setClienteId]=useState('');
+  const [sugerencias,setSugerencias]=useState(false);
+  const [showClientes,setShowClientes]=useState(false);
+  const [guardandoCliente,setGuardandoCliente]=useState(false);
+  const [historialError,setHistorialError]=useState('');
+  useEffect(()=>{
+    const unsubClientes=onSnapshot(collection(db,'clientes_presupuestos_sii'),snap=>{
+      setClientes(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.razonSocial||'').localeCompare(String(b.razonSocial||''))));
+    },err=>setHistorialError('No se pudieron cargar clientes: '+err.message));
+    const unsubHistorial=onSnapshot(collection(db,'historial_presupuestos_sii'),snap=>{
+      setHistorial(snap.docs.map(d=>({id:d.id,...d.data()})));
+    },err=>setHistorialError('No se pudo cargar el historial: '+err.message));
+    return ()=>{unsubClientes();unsubHistorial();};
+  },[]);
+  const sugeridos=useMemo(()=>clientes.filter(c=>coincideCliente(c,quote.cliente.razonSocial)).slice(0,7),[clientes,quote.cliente.razonSocial]);
+  const preciosPrevios=useMemo(()=>Object.fromEntries(quote.items.map(item=>[
+    item.id,ultimoPrecioCliente(historial,clienteId,item,quote.cliente.razonSocial)
+  ])),[historial,clienteId,quote.items,quote.cliente.razonSocial]);
   const totals=useMemo(()=>{
     try{return {data:calcularPresupuesto(quote),error:''};}
     catch(e){return {data:null,error:e.message};}
   },[quote]);
-  const setCustomer=(key,value)=>setQuote(q=>({...q,cliente:{...q.cliente,[key]:value}}));
+  const setCustomer=(key,value)=>{
+    if(key==='razonSocial')setClienteId('');
+    setQuote(q=>({...q,cliente:{...q.cliente,[key]:value}}));
+  };
+  const seleccionarCliente=cliente=>{
+    setClienteId(cliente.id);
+    setQuote(q=>({...q,cliente:{
+      razonSocial:cliente.razonSocial||'',cuit:cliente.cuit||'',domicilio:cliente.domicilio||'',
+      condicionIVA:cliente.condicionIVA||'Responsable Inscripto',
+      telefono:cliente.telefono||'',email:cliente.email||''
+    }}));
+    setSugerencias(false);
+    setNotice('Datos de '+cliente.razonSocial+' autocompletados.');
+  };
+  const guardarCliente=async()=>{
+    const cliente={...quote.cliente,razonSocial:quote.cliente.razonSocial.trim()};
+    if(!cliente.razonSocial){setError('Ingresá un nombre o razón social antes de guardar.');return;}
+    setGuardandoCliente(true);setError('');
+    try{
+      const existente=clienteId ? clientes.find(c=>c.id===clienteId)
+        : clientes.find(c=>(cliente.cuit&&normalizarBusqueda(c.cuit)===normalizarBusqueda(cliente.cuit))||
+          normalizarBusqueda(c.razonSocial)===normalizarBusqueda(cliente.razonSocial));
+      if(existente){
+        await updateDoc(doc(db,'clientes_presupuestos_sii',existente.id),{...cliente,actualizadoEn:serverTimestamp()});
+        setClienteId(existente.id);
+      }else{
+        const referencia=await addDoc(collection(db,'clientes_presupuestos_sii'),{...cliente,creadoEn:serverTimestamp()});
+        setClienteId(referencia.id);
+      }
+      setNotice('Cliente guardado en la base de SII PALLETS.');
+      setSugerencias(false);
+    }catch(err){setError('No se pudo guardar el cliente: '+err.message);}
+    finally{setGuardandoCliente(false);}
+  };
+  const guardarHistorial=async total=>{
+    const referencia=doc(db,'historial_presupuestos_sii',quote.numero);
+    const original={
+      numero:quote.numero,fecha:quote.fecha,cuenta:quote.cuenta,
+      clienteId:clienteId||null,cliente:{...quote.cliente},
+      items:quote.items.map(({id,codigo,descripcion,cantidad,bultos,precioUnitario})=>({id,codigo,descripcion,cantidad,bultos,precioUnitario})),
+      totalCentavos:total.totalCentavos
+    };
+    await runTransaction(db,async transaccion=>{
+      const previo=await transaccion.get(referencia);
+      if(previo.exists()){
+        const anterior=previo.data();
+        if(JSON.stringify({...anterior,guardadoEn:undefined})!==JSON.stringify({...original,guardadoEn:undefined})){
+          throw new Error('Ya existe otro presupuesto con el número '+quote.numero+'. Usá Nuevo presupuesto o revisá la numeración.');
+        }
+      }else transaccion.set(referencia,{...original,guardadoEn:serverTimestamp()});
+    });
+  };
   const updateLine=(id,key,value)=>setQuote(q=>({...q,items:q.items.map(i=>i.id===id?{...i,[key]:value}:i)}));
   const addLine=()=>setQuote(q=>({...q,items:[...q.items,ITEM_VACIO()]}));
   const deleteLine=id=>setQuote(q=>({...q,items:q.items.length>1?q.items.filter(i=>i.id!==id):[ITEM_VACIO()]}));
@@ -47,6 +121,7 @@ export default function PresupuestosPDF() {
   const newQuote=()=>{
     const n=Math.max(getSequence(),Number(quote.numero?.split('-')[1]) + 1 || COTIZACION_INICIO);
     try {localStorage.setItem(SERIE_KEY,String(n));}catch{/* Storage opcional */}
+    setClienteId('');setSugerencias(false);
     setQuote({...initial(),numero:numeroCotizacion(n)});
     setError('');setNotice('Nuevo presupuesto listo.');
   };
@@ -56,7 +131,10 @@ export default function PresupuestosPDF() {
     try {
       validarPresupuesto(quote);
       setBusy(action);
-      const {blob,filename}=await generarPdfPresupuesto(quote);
+      const {blob,filename,totals:calculado}=await generarPdfPresupuesto(quote);
+      // El historial se guarda al emitir un PDF para recuperar exactamente el último precio.
+      // Evita que una falla de Firestore se confunda con un PDF creado sin registrar.
+      await guardarHistorial(calculado);
       if(action==='download'){
         descargarPdf(blob,filename);
         recordNumber();
@@ -112,8 +190,32 @@ export default function PresupuestosPDF() {
         </div>
         <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
           <h3 className="font-extrabold text-slate-800">2. Datos del cliente</h3>
+          <div className="flex flex-wrap justify-between gap-2 items-center">
+            <span className="text-xs text-slate-500">{clientes.length} clientes registrados</span>
+            <button type="button" onClick={()=>setShowClientes(v=>!v)} className="rounded-xl bg-slate-900 px-3 py-2 text-white text-xs font-bold">{showClientes?'Ocultar clientes':'Ver cartera de clientes'}</button>
+          </div>
+          {showClientes&&<div className="max-h-52 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {clientes.length?clientes.map(c=><button type="button" key={c.id} onClick={()=>{seleccionarCliente(c);setShowClientes(false);}}
+              className="rounded-xl bg-slate-50 border border-slate-200 px-3 py-3 text-left hover:border-blue-400">
+              <strong className="block text-sm text-slate-900 break-words">{c.razonSocial}</strong>
+              <span className="text-xs text-slate-500">{c.cuit||c.telefono||'Sin CUIT'}</span>
+            </button>):<p className="text-xs text-slate-500">Todavía no guardaste clientes.</p>}
+          </div>}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <label className="sm:col-span-2"><span className={label}>Razón social / Nombre *</span><input className={input} value={quote.cliente.razonSocial} onChange={e=>setCustomer('razonSocial',e.target.value)} placeholder="Nombre o empresa cliente"/></label>
+            <div className="sm:col-span-2 relative">
+              <label className={label} htmlFor="busqueda-cliente-presupuesto">Razón social / Nombre *</label>
+              <input id="busqueda-cliente-presupuesto" autoComplete="off" className={input} value={quote.cliente.razonSocial}
+                onFocus={()=>setSugerencias(true)} onChange={e=>{setCustomer('razonSocial',e.target.value);setSugerencias(true);}}
+                placeholder="Escribí Manuchar, CUIT o nombre…"/>
+              {sugerencias&&quote.cliente.razonSocial.trim()&&sugeridos.length>0&&
+                <div className="absolute z-20 left-0 right-0 top-full mt-1 max-h-60 overflow-auto rounded-2xl border border-blue-200 bg-white shadow-2xl">
+                  {sugeridos.map(c=><button key={c.id} type="button" onClick={()=>seleccionarCliente(c)}
+                    className="block w-full text-left px-4 py-3 border-b border-slate-100 hover:bg-blue-50">
+                    <strong className="block text-sm text-slate-900">{c.razonSocial}</strong>
+                    <small className="text-slate-500">{c.cuit||c.telefono||'Cliente registrado'}</small>
+                  </button>)}
+                </div>}
+            </div>
             <label><span className={label}>CUIT / DNI</span><input className={input} value={quote.cliente.cuit} onChange={e=>setCustomer('cuit',e.target.value)} placeholder="Número de identificación"/></label>
             <label><span className={label}>Condición frente al IVA</span><select className={input} value={quote.cliente.condicionIVA} onChange={e=>setCustomer('condicionIVA',e.target.value)}>
               {['Responsable Inscripto','Monotributista','Consumidor Final','Exento','No especificado'].map(t=><option key={t} value={t}>{t}</option>)}
@@ -122,6 +224,11 @@ export default function PresupuestosPDF() {
             <label><span className={label}>Teléfono (opcional)</span><input className={input} inputMode="tel" value={quote.cliente.telefono} onChange={e=>setCustomer('telefono',e.target.value)}/></label>
             <label><span className={label}>Correo (opcional)</span><input className={input} type="email" value={quote.cliente.email} onChange={e=>setCustomer('email',e.target.value)} placeholder="cliente@empresa.com"/></label>
           </div>
+          <button type="button" disabled={guardandoCliente} onClick={guardarCliente}
+            className="rounded-xl bg-blue-700 hover:bg-blue-800 text-white px-4 py-3 text-sm font-bold disabled:opacity-50">
+            {guardandoCliente?'Guardando…':clienteId?'Actualizar ficha del cliente':'Guardar cliente en la base'}
+          </button>
+          {historialError&&<p role="alert" className="text-xs text-amber-800 bg-amber-50 rounded-xl p-3">{historialError}</p>}
         </div>
         <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
           <div className="flex items-center justify-between gap-2"><h3 className="font-extrabold text-slate-800">3. Productos e ítems</h3><button type="button" onClick={addLine} disabled={quote.items.length>=100} className="rounded-xl bg-blue-700 hover:bg-blue-800 disabled:opacity-40 text-white text-xs font-bold px-3 py-2">+ Agregar ítem</button></div>
@@ -138,6 +245,15 @@ export default function PresupuestosPDF() {
                 <label><span className={label}>Bultos</span><input className={input} type="number" inputMode="decimal" min="0" step="any" value={row.bultos} onChange={e=>updateLine(row.id,'bultos',e.target.value)}/></label>
                 <label className="col-span-2"><span className={label}>Precio unitario ($) *</span><input className={input} type="number" inputMode="decimal" min="0" step="0.01" placeholder="0,00" value={row.precioUnitario} onChange={e=>updateLine(row.id,'precioUnitario',e.target.value)}/></label>
               </div>
+              {preciosPrevios[row.id]&&<div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-between bg-blue-50 border border-blue-200 rounded-xl px-3 py-3">
+                <div className="min-w-0">
+                  <span className="text-[11px] font-bold uppercase tracking-wide text-blue-800">Último precio a este cliente</span>
+                  <p className="text-sm font-black text-slate-900">{peso(Math.round(preciosPrevios[row.id].precioUnitario*100))} / unidad</p>
+                  <p className="text-xs text-slate-600">Presupuesto {preciosPrevios[row.id].numero} · {fechaAR(preciosPrevios[row.id].fecha)} · {preciosPrevios[row.id].descripcion}</p>
+                </div>
+                <button type="button" className="bg-white border border-blue-300 text-blue-800 rounded-lg px-3 py-2 text-xs font-bold whitespace-nowrap"
+                  onClick={()=>updateLine(row.id,'precioUnitario',String(preciosPrevios[row.id].precioUnitario))}>Usar como referencia</button>
+              </div>}
               <div className="text-right text-sm font-bold text-slate-800">Subtotal: {totals.data?.lineas.find(x=>x.id===row.id) ? peso(totals.data.lineas.find(x=>x.id===row.id).subtotalCentavos) : '—'}</div>
             </div>)}
           </div>

@@ -1,5 +1,5 @@
 // Archivo: src/App.jsx
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { onAuthStateChanged, signInAnonymously } from "firebase/auth";
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, addDoc, setDoc } from "firebase/firestore";
 import { auth, db } from './firebase';
@@ -10,22 +10,26 @@ import {
     IconFolder, IconLayers, IconCheck, IconEye, IconPencil, IconTrash, IconMessage, IconBank, IconChevronLeft, IconChevronRight, IconX, IconFileText, IconCalendar
 } from './components/Icons';
 
-import Pallets from './pages/Pallets';
-import Caja from './pages/Caja';
-import Movimientos from './pages/Movimientos';
-import Balance from './pages/Balance';
+import NavegacionMovil from './components/NavegacionMovil';
+import ProWorkspace from './components/ProWorkspace';
 import { exportarExcelCategorias, exportarPdfCategorias } from './pages/ExportarCategoriasPagos';
 import { categoriasPagos } from './utils/balanceSemanal';
 import { usePagosReales } from './hooks/usePagosReales';
-import Facturacion from './pages/Facturacion';
-import PresupuestosPDF from './pages/PresupuestosPDF';
-import TransferenciaFirestore from './pages/TransferenciaFirestore';
+// Vistas pesadas: se descargan sólo al ingresar en el módulo.
+const Pallets = lazy(() => import('./pages/Pallets'));
+const Caja = lazy(() => import('./pages/Caja'));
+const Movimientos = lazy(() => import('./pages/Movimientos'));
+const Balance = lazy(() => import('./pages/Balance'));
+const Facturacion = lazy(() => import('./pages/Facturacion'));
+const PresupuestosPDF = lazy(() => import('./pages/PresupuestosPDF'));
+const TransferenciaFirestore = lazy(() => import('./pages/TransferenciaFirestore'));
 import { conectarBasesOriginales } from './utils/conectarFirebaseOriginales';
+import { solicitarChequeoPush } from './utils/pushClient';
 
 
 export default function App() {
     const [mode, setMode] = useState(() => (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('migracion') === '1' ? 'migration' : 'pay')); // Inicia en la nueva pestaña de Pagos
-    const pagosAvanzados = usePagosReales(true); // Solo lectura de la fuente real de Pagos
+    const pagosAvanzados = usePagosReales(true); // Indicadores de Pagos Avanzados y Balance comparten un único lector
     const pagosIframeRef = useRef(null);
     const [user, setUser] = useState(null); 
     const [payItems, setPayItems] = useState([]); 
@@ -81,6 +85,17 @@ export default function App() {
 
     // Comunicación únicamente con la copia local de Pagos incluida en ESTA vista previa.
     // Los informes se generan a pedido; ningún movimiento de Firebase es modificado.
+    useEffect(() => {
+        const handler = event => {
+            if (event.origin !== window.location.origin ||
+                event.source !== pagosIframeRef.current?.contentWindow ||
+                event.data?.type !== 'SII_PAGOS_GUARDADOS_V1') return;
+            void solicitarChequeoPush();
+        };
+        window.addEventListener('message', handler);
+        return () => window.removeEventListener('message', handler);
+    }, []);
+
     useEffect(() => {
         const onExport = async event => {
             const message=event.data;
@@ -913,6 +928,8 @@ export default function App() {
         }
         setNewItem({ number: '', issueDate: '', dueDate: '', amount: '', payee: '', paidAmount: 0, subtype: 'cheque', category: 'others', status: 'pending', monthYear: '', cashType: 'income', bank: '', isRecurring: false, installments: 2 });
         setEditingId(null); setShowAddForm(false);
+        // Servidor comprueba cambios reales; no se envían datos financieros desde el cliente.
+        void solicitarChequeoPush();
     };
 
     const handleCashAddAction = async (e) => {
@@ -968,6 +985,7 @@ export default function App() {
         const newHistory = [...(item.paymentHistory || []), historyRecord];
         await updateDoc(doc(db, collectionName, 'main_list', 'items', item.id), { status: newStatus, paidAmount: currentPaid, paymentHistory: newHistory, paymentDetails: historyRecord });
         setPaymentModal({ isOpen: false, item: null, method: 'transfer', proof: '', type: 'total', amount: '' });
+        void solicitarChequeoPush();
     };
 
     const markFullPaymentAction = async (item) => { setPaymentModal({ isOpen: true, item: item, method: 'transfer', proof: '', type: 'total', amount: '' }); };
@@ -980,6 +998,7 @@ export default function App() {
         if(item.type === 'expense') collectionName = 'gastos_public_shared'; 
         if(item.type === 'cash') collectionName = 'caja_public_shared';
         await deleteDoc(doc(db, collectionName, 'main_list', 'items', item.id));
+        void solicitarChequeoPush();
     };
 
     const changeMode = (newMode) => {
@@ -987,6 +1006,8 @@ export default function App() {
         setPayTab('pendientes');
         setShowAddForm(false);
         setEditingId(null);
+        setShowNotifPanel(false);
+        if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'auto' });
     };
 
     // Abre el registro exacto desde el desglose de IVA, sin crear otra factura.
@@ -1006,102 +1027,17 @@ export default function App() {
 
     // EL TRUCO 100% PANTALLA COMPLETA: w-full min-h-screen sin límites
     return (
-        <div className={`w-full min-h-screen bg-gray-50 relative transition-colors duration-500 ${mode === 'pay' ? 'pb-0' : 'pb-24 lg:pb-8'}`}>
-            <div className={`${theme.bg} text-white p-4 md:p-6 sticky top-0 z-30 shadow-lg transition-colors duration-500`}>
-                <div className="flex justify-between items-center mb-4">
-                    <h1 className="text-xl font-bold flex items-center gap-2">SII PALLETS APP</h1>
-                    <div className="flex gap-1 items-center">
-                        {deferredPrompt && ( 
-                            <button onClick={installApp} className="bg-white/20 hover:bg-white/30 px-2 py-1 rounded text-xs font-bold flex items-center gap-1 mr-1">
-                                <IconDownload className="w-4 h-4" /> Instalar
-                            </button> 
-                        )}
-                        {/* Se ocultan los botones de impresión en el modo PAGOS avanzado porque ya los trae el HTML nativo */}
-                        {mode !== 'cashbox' && mode !== 'pallets' && mode !== 'billing' && mode !== 'pay' && mode !== 'migration' && (
-                            <>
-                                <button onClick={() => triggerMainReport('print')} className="p-2 relative bg-white/20 rounded-full hover:bg-white/30" title="Imprimir Reporte">
-                                    <IconPrinter className="w-5 h-5"/>
-                                </button>
-                                <button onClick={() => triggerMainReport('download')} className="p-2 relative bg-white/20 rounded-full hover:bg-white/30" title="Descargar PDF">
-                                    <IconDownload className="w-5 h-5"/>
-                                </button>
-                            </>
-                        )}
-                        <div className="relative ml-1">
-                            <button onClick={() => setShowNotifPanel(!showNotifPanel)} className="p-2 relative">
-                                {alerts.length > 0 ? <IconBellRing className="w-6 h-6 animate-pulse text-yellow-300"/> : <IconBell className="w-6 h-6"/>}
-                                {alerts.length > 0 && <span className="absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold px-1.5 rounded-full">{alerts.length}</span>}
-                            </button>
-                            {showNotifPanel && (
-                                <div className="absolute right-0 mt-3 w-72 bg-white text-gray-800 rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
-                                    <div className="p-3 bg-gray-50 border-b flex justify-between items-center">
-                                        <h3 className="font-bold text-sm">Alertas (10 días)</h3>
-                                        {notifPermission !== 'granted' && (
-                                            <button onClick={requestNotify} className="text-[10px] bg-blue-100 text-blue-700 px-2 py-1 rounded font-bold hover:bg-blue-200">ACTIVAR PUSH</button>
-                                        )}
-                                    </div>
-                                    <div className="max-h-60 overflow-y-auto">
-                                        {alerts.length === 0 ? <div className="p-4 text-center text-xs text-gray-400">Todo tranquilo.</div> :
-                                        alerts.map(a => {
-                                            const d = getDays(a.dueDate);
-                                            const isPay = a.type === 'pay';
-                                            return (
-                                                <div key={a.id} className={`p-3 border-b text-sm ${d < 0 ? 'bg-red-50' : 'bg-white'}`}>
-                                                    <div className="flex justify-between">
-                                                        <span className={`text-[10px] font-bold px-1 rounded ${isPay ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                                            {isPay ? 'PAGO' : (a.type === 'wallet' ? 'CARTERA' : (a.type === 'expense' ? 'GASTO' : 'COBRO'))}
-                                                        </span>
-                                                        <span className="font-mono text-xs">{formatMoney(a.amount - (a.paidAmount||0))}</span>
-                                                    </div>
-                                                    <p className="font-bold mt-1">{a.payee}</p>
-                                                    <p className={`text-xs ${d < 0 ? 'text-red-600 font-bold' : 'text-orange-500'}`}>{d < 0 ? `Vencido hace ${Math.abs(d)} días` : `Vence en ${d} días`}</p>
-                                                </div>
-                                            )
-                                        })}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {mode !== 'pallets' && mode !== 'billing' && mode !== 'pay' && (
-                <div className="mb-3 relative">
-                    <input 
-                        type="text" 
-                        placeholder="Buscar por nombre, cheque o factura..." 
-                        className="w-full pl-9 pr-4 py-2 rounded-lg bg-white/20 text-white placeholder-white/70 outline-none focus:bg-white/30 text-sm" 
-                        value={searchTerm} 
-                        onChange={e => setSearchTerm(e.target.value)} 
-                    />
-                    <IconSearch className="w-4 h-4 text-white/70 absolute left-3 top-2.5"/>
-                </div>
-                )}
-
-                <div className="flex justify-end mb-2">
-                    <button onClick={() => changeMode('migration')} className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs sm:text-sm shadow-sm transition-all ${mode === 'migration' ? 'bg-white text-amber-900' : 'bg-amber-300 text-slate-900 hover:bg-amber-200'}`}>
-                        <IconDownload className="w-4 h-4"/> MIGRACIÓN / RESPALDO
-                    </button>
-                </div>
-                <div className="bg-black/20 p-1 rounded-xl flex text-[10px] sm:text-xs overflow-x-auto scrollbar-hide gap-1">
-                    <button onClick={() => changeMode('pay')} className={`flex-1 py-2 px-3 rounded-lg font-bold flex flex-col sm:flex-row items-center justify-center gap-1 transition-all whitespace-nowrap ${mode === 'pay' ? 'bg-white text-blue-800 shadow-md' : 'text-white/60'}`}><IconWallet className="w-4 h-4"/> <span>PAGOS</span></button>
-                    <button onClick={() => changeMode('billing')} className={`flex-1 py-2 px-3 rounded-lg font-bold flex flex-col sm:flex-row items-center justify-center gap-1 transition-all whitespace-nowrap ${mode === 'billing' ? 'bg-white text-pink-800 shadow-md' : 'text-white/60'}`}><IconFileText className="w-4 h-4"/> <span>FACTURACIÓN</span></button>
-                    <button onClick={() => changeMode('quotesPDF')} className={`flex-1 py-2 px-3 rounded-lg font-bold flex flex-col sm:flex-row items-center justify-center gap-1 transition-all whitespace-nowrap ${mode === 'quotesPDF' ? 'bg-white text-blue-800 shadow-md' : 'text-white/60'}`}><IconFileText className="w-4 h-4"/> <span>PRESUPUESTOS</span></button>
-                    <button onClick={() => changeMode('cashbox')} className={`flex-1 py-2 px-3 rounded-lg font-bold flex flex-col sm:flex-row items-center justify-center gap-1 transition-all whitespace-nowrap ${mode === 'cashbox' ? 'bg-white text-cyan-800 shadow-md' : 'text-white/60'}`}><IconBox className="w-4 h-4"/> <span>CAJA</span></button>
-                    {/* Gastos permanece en el código y Firebase, pero se oculta del menú durante el piloto. */}
-                    <button onClick={() => changeMode('balance')} className={`flex-1 py-2 px-3 rounded-lg font-bold flex flex-col sm:flex-row items-center justify-center gap-1 transition-all whitespace-nowrap ${mode === 'balance' ? 'bg-white text-violet-800 shadow-md' : 'text-white/60'}`}><IconTrendingUp className="w-4 h-4"/> <span>BALANCE</span></button>
-                    <button onClick={() => changeMode('collect')} className={`flex-1 py-2 px-3 rounded-lg font-bold flex flex-col sm:flex-row items-center justify-center gap-1 transition-all whitespace-nowrap ${mode === 'collect' ? 'bg-white text-emerald-800 shadow-md' : 'text-white/60'}`}><IconBriefcase className="w-4 h-4"/> <span>COBROS</span></button>
-                    <button onClick={() => changeMode('wallet')} className={`flex-1 py-2 px-3 rounded-lg font-bold flex flex-col sm:flex-row items-center justify-center gap-1 transition-all whitespace-nowrap ${mode === 'wallet' ? 'bg-white text-indigo-800 shadow-md' : 'text-white/60'}`}><IconFolder className="w-4 h-4"/> <span>CARTERA</span></button>
-                    <button onClick={() => changeMode('pallets')} className={`flex-1 py-2 px-3 rounded-lg font-bold flex flex-col sm:flex-row items-center justify-center gap-1 transition-all whitespace-nowrap ${mode === 'pallets' ? 'bg-white text-teal-800 shadow-md' : 'text-white/60'}`}><IconLayers className="w-4 h-4"/> <span>PALLETS</span></button>
-                </div>
-            </div>
-
+        <div className="sii-pro-app w-full min-h-screen relative pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-8">
+            <ProWorkspace mode={mode} onNavigate={changeMode}
+              collectItems={collectItems} payItems={payItems} pagosAvanzados={pagosAvanzados} alerts={alerts}
+              searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
             {/* Contenedor sin márgenes estrictos */}
-            <div className={mode === 'pay' ? 'p-0 sm:p-2' : 'p-2 sm:p-4 md:p-6'}>
+            <div className="sii-pro-main">
                 
+                <Suspense fallback={<div role="status" className="rounded-2xl border border-slate-200 bg-white p-6 text-sm font-semibold text-slate-600 shadow-sm">Cargando sección de SII PALLETS…</div>}>
                 {/* PORTAL A PANTALLA COMPLETA: APLICACIÓN AVANZADA DE PAGOS */}
                 {mode === 'pay' && (
-                    <div className="w-full h-[calc(100vh-140px)] bg-white sm:rounded-2xl shadow-xl overflow-hidden animate-fade-in border-0 sm:border border-gray-200">
+                    <div className="w-full h-[calc(100dvh-190px)] min-h-[320px] md:h-[calc(100vh-140px)] bg-white sm:rounded-2xl shadow-xl overflow-hidden animate-fade-in border-0 sm:border border-gray-200">
                         <iframe ref={pagosIframeRef} src="/pagos.html" title="Control de Pagos Avanzado — prueba de categorías" className="w-full h-full border-none outline-none bg-[#f8fafc]"></iframe>
                     </div>
                 )}
@@ -1183,7 +1119,9 @@ export default function App() {
                         deleteBank={deleteBankAction}
                     />
                 )}
+                </Suspense>
             </div>
+            <NavegacionMovil modo={mode} cambiarModo={changeMode}/>
 
             {/* MODALES GLOBALES */}
             {paymentModal.isOpen && (
