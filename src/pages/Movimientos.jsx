@@ -71,25 +71,26 @@ export default function Movimientos({
                             </span>
                         </div>
                     </div>
-                    <div className="w-full sm:w-auto flex justify-between sm:justify-end items-center gap-4 pl-0 sm:pl-3 border-t sm:border-t-0 pt-2 sm:pt-0 mt-2 sm:mt-0">
-                        <div className="text-right">
-                            <div className="font-black text-lg sm:text-xl text-slate-900 tracking-tight tabular-nums break-all">{formatMoney(item.amount)}</div>
+                    <div className="w-full sm:w-auto flex flex-col sm:flex-row sm:justify-end sm:items-center gap-3 sm:gap-4 pl-0 sm:pl-3 border-t sm:border-t-0 pt-3 sm:pt-0 mt-2 sm:mt-0">
+                        <div className="w-full sm:w-auto text-left sm:text-right min-w-0 rounded-xl bg-slate-50 sm:bg-transparent p-3 sm:p-0">
+                            <p className="text-[10px] sm:hidden font-extrabold uppercase tracking-wide text-slate-500 mb-1">Importe del movimiento</p>
+                            <div className="sii-amount-value font-black text-slate-900 tracking-tight tabular-nums">{formatMoney(item.amount)}</div>
                             {(isPartial || (isPaid && item.paidAmount < item.amount)) && (
                                 <div className="text-[10px] text-red-500 font-bold">Resta: {formatMoney(item.amount - (item.paidAmount || 0))}</div>
                             )}
                         </div>
-                        <div className="flex flex-wrap gap-1.5 justify-end">
+                        <div className="sii-movement-actions grid grid-cols-3 sm:flex gap-2 sm:justify-end w-full sm:w-auto">
                             {!isPaid && (
-                                <button onClick={() => markFullPayment(item)} className="rounded-xl min-h-[36px] min-w-[36px] flex items-center justify-center bg-green-50 text-green-700 hover:bg-green-100" title="Marcar Pagado">
+                                <button onClick={() => markFullPayment(item)} className="sii-pro-action-btn rounded-xl flex items-center justify-center bg-green-50 text-green-700 hover:bg-green-100" title="Marcar Pagado">
                                     <IconCheck className="w-4 h-4"/>
                                 </button>
                             )}
                             {!isPaid && item.status !== 'paid' && mode !== 'expenses' && (
-                                <button onClick={() => markPartialPayment(item)} className="rounded-xl min-h-[36px] min-w-[36px] flex items-center justify-center bg-amber-50 text-amber-700 hover:bg-amber-100" title="Pago Parcial">
+                                <button onClick={() => markPartialPayment(item)} className="sii-pro-action-btn rounded-xl flex items-center justify-center bg-amber-50 text-amber-700 hover:bg-amber-100" title="Pago Parcial">
                                     $
                                 </button>
                             )}
-                            <button onClick={() => setHistoryModal({isOpen: true, item: item})} className="rounded-xl min-h-[36px] min-w-[36px] flex items-center justify-center bg-violet-50 text-violet-700 hover:bg-violet-100" title="Ver Historial de Pagos">
+                            <button onClick={() => setHistoryModal({isOpen: true, item: item})} className="sii-pro-action-btn rounded-xl flex items-center justify-center bg-violet-50 text-violet-700 hover:bg-violet-100" title="Ver Historial de Pagos">
                                 <IconEye className="w-4 h-4"/>
                             </button>
                             <button 
@@ -98,14 +99,14 @@ export default function Movimientos({
                                     const text = `Hola *${item.payee}*, aviso sobre ${action} (Ref: ${item.number || 'S/N'}) por *${formatMoney(item.amount)}* con fecha: ${new Date(item.dueDate+'T00:00:00').toLocaleDateString('es-AR')}. Saludos, SII PALLETS.`;
                                     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
                                 }} 
-                                className="rounded-xl min-h-[36px] min-w-[36px] flex items-center justify-center bg-emerald-50 text-emerald-700 hover:bg-emerald-100" title="Enviar WhatsApp"
+                                className="sii-pro-action-btn rounded-xl flex items-center justify-center bg-emerald-50 text-emerald-700 hover:bg-emerald-100" title="Enviar WhatsApp"
                             >
                                 <IconMessage className="w-4 h-4" />
                             </button>
-                            <button onClick={() => handleEdit(item)} className="rounded-xl min-h-[36px] min-w-[36px] flex items-center justify-center bg-blue-50 text-blue-700 hover:bg-blue-100" title="Editar">
+                            <button onClick={() => handleEdit(item)} className="sii-pro-action-btn rounded-xl flex items-center justify-center bg-blue-50 text-blue-700 hover:bg-blue-100" title="Editar">
                                 <IconPencil className="w-4 h-4"/>
                             </button>
-                            <button onClick={() => deleteItem(item)} className="rounded-xl min-h-[36px] min-w-[36px] flex items-center justify-center bg-rose-50 text-rose-700 hover:bg-rose-100" title="Eliminar">
+                            <button onClick={() => deleteItem(item)} className="sii-pro-action-btn rounded-xl flex items-center justify-center bg-rose-50 text-rose-700 hover:bg-rose-100" title="Eliminar">
                                 <IconTrash className="w-4 h-4"/>
                             </button>
                         </div>
@@ -177,7 +178,7 @@ export default function Movimientos({
                                 ? (payTab === 'realizados' ? 'Total Pagado' : 'Deuda Total Pendiente') 
                                 : (mode === 'wallet' ? 'Total en Cartera' : (mode === 'expenses' ? 'Total Gastos Mes' : 'Cobros Totales Pendientes'))}
                         </p>
-                        <p className="text-3xl font-black text-gray-800">
+                        <p className="sii-total-amount text-slate-900 font-black tabular-nums">
                             {mode === 'pay' 
                                 ? (payTab === 'realizados' ? formatMoney(totalRealizados) : formatMoney(balanceData.pay)) 
                                 : (mode === 'wallet' ? formatMoney(balanceData.wallet) : (mode === 'expenses' ? formatMoney(balanceData.expenses) : formatMoney(balanceData.collect)))}
