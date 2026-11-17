@@ -1,9 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { getApp } from 'firebase/app';
-import { getMessaging, isSupported, onMessage } from 'firebase/messaging';
+import React, { useMemo, useState } from 'react';
+import CentroNotificaciones from './CentroNotificaciones';
 import {
-  IconBank, IconBell, IconBriefcase, IconBox, IconDownload, IconFileText,
-  IconFolder, IconLayers, IconSearch, IconTrendingUp, IconWallet, IconX
+  IconBriefcase, IconBox, IconDownload, IconFileText,
+  IconFolder, IconLayers, IconSearch, IconTrendingUp, IconWallet
 } from './Icons';
 import PushControl from './PushControl';
 
@@ -19,38 +18,19 @@ const modules = [
   {id:'migration',title:'Respaldo',hint:'Auditoría y migración',Icon:IconDownload}
 ];
 const pesos = number => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(number)||0);
-const number = value => new Intl.NumberFormat('es-AR').format(Number(value)||0);
 const out = list => list.filter(item=>item.status !== 'paid');
-export default function ProWorkspace({mode,onNavigate,collectItems,payItems,pagosAvanzados,alerts,searchTerm,setSearchTerm}) {
-  const [alertasAbiertas,setAlertasAbiertas] = useState(false);
+export default function ProWorkspace({mode,onNavigate,onOpenNotification,collectItems,payItems,pagosAvanzados,searchTerm,setSearchTerm}) {
   const [pushAbierto,setPushAbierto] = useState(false);
-  const [avisoEnPantalla,setAvisoEnPantalla] = useState(null);
-  useEffect(()=>{
-    let stop=()=>{},cancelado=false;
-    isSupported().then(habilitado=>{
-      if(!habilitado||cancelado)return;
-      stop=onMessage(getMessaging(getApp()),evento=>{
-        setAvisoEnPantalla({titulo:evento.data?.title||'SII PALLETS',detalle:evento.data?.body||'Nuevo aviso'});
-      });
-    }).catch(()=>{});
-    return ()=>{cancelado=true;stop();};
-  },[]);
   const seleccionado = modules.find(x=>x.id===mode)||modules[0];
   const resumen = useMemo(()=>{
     const cobros = out(collectItems);
-    const pagos = out(payItems);
     const pagAvanzados=pagosAvanzados?.ready && Array.isArray(pagosAvanzados.items)
       ? pagosAvanzados.items.filter(i=>String(i.estado||'').toUpperCase()!=='PAGADO') : [];
     const cobrosPendientes=cobros.reduce((total,i)=>total+Math.max(0,Number(i.amount||0)-Number(i.paidAmount||0)),0);
     const pagosPendientes=pagAvanzados.reduce((total,i)=>total+Math.max(0,Number(i.importe||0)),0);
-    const hoy=new Date();hoy.setHours(0,0,0,0);
-    const hasta=new Date(hoy);hasta.setDate(hasta.getDate()+2);
-    const hastaKey=[hasta.getFullYear(),String(hasta.getMonth()+1).padStart(2,'0'),String(hasta.getDate()).padStart(2,'0')].join('-');
-    const desdeKey=[hoy.getFullYear(),String(hoy.getMonth()+1).padStart(2,'0'),String(hoy.getDate()).padStart(2,'0')].join('-');
-    const inminentes=[...cobros,...pagos].filter(item=>item.dueDate&&item.dueDate>=desdeKey&&item.dueDate<=hastaKey).length+
-      pagAvanzados.filter(item=>item.fecha&&item.fecha>=desdeKey&&item.fecha<=hastaKey).length;
-    return {cobrosPendientes,pagosPendientes,inminentes,totalMovimientos:collectItems.length+payItems.length};
-  },[collectItems,payItems,pagosAvanzados]);
+    const diferencia=cobrosPendientes-pagosPendientes;
+    return {cobrosPendientes,pagosPendientes,diferencia};
+  },[collectItems,pagosAvanzados]);
   return <>
     <aside className="sii-pro-sidebar hidden md:flex" aria-label="Secciones de la aplicación">
       <div className="sii-pro-brand">
@@ -78,23 +58,10 @@ export default function ProWorkspace({mode,onNavigate,collectItems,payItems,pago
       </div>
       <div className="flex items-center gap-2">
         <span className="sii-pro-connection"><span className="sii-pro-live"/> En línea</span>
-        <button aria-label="Abrir centro de notificaciones" className="sii-pro-iconbtn" onClick={()=>setAlertasAbiertas(v=>!v)}><IconBell className="w-5 h-5"/>{alerts.length>0&&<span className="sii-pro-count">{alerts.length}</span>}</button>
+        <CentroNotificaciones onOpen={onOpenNotification}/>
         <button onClick={()=>setPushAbierto(v=>!v)} className="sii-pro-action">Notificaciones <span className="hidden sm:inline">push</span></button>
       </div>
     </div>
-    {avisoEnPantalla&&<div className="fixed z-[60] right-3 bottom-[calc(85px+env(safe-area-inset-bottom))] md:bottom-5 w-[min(370px,calc(100vw-24px))] rounded-2xl bg-slate-900 text-white p-4 shadow-2xl border border-blue-500" role="status">
-      <div className="flex justify-between items-start gap-2"><strong className="text-sm">{avisoEnPantalla.titulo}</strong><button type="button" aria-label="Cerrar aviso" onClick={()=>setAvisoEnPantalla(null)}>✕</button></div>
-      <p className="text-xs text-slate-200 mt-1 break-words">{avisoEnPantalla.detalle}</p>
-    </div>}
-    {alertasAbiertas&&<div className="sii-pro-overlay-panel">
-      <div className="flex justify-between items-center mb-3"><strong className="text-slate-900">Próximos vencimientos</strong><button aria-label="Cerrar alertas" onClick={()=>setAlertasAbiertas(false)}><IconX className="w-5 h-5"/></button></div>
-      {alerts.length===0?<p className="text-slate-500 text-sm">No tenés alertas próximas.</p>:
-      <div className="max-h-72 overflow-y-auto space-y-2">{alerts.slice(0,30).map((a,i)=><div key={String(a.id)+'-'+i} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-        <div className="flex justify-between gap-2"><span className="font-bold text-slate-900 text-xs">{a.type==='collect'?'Por cobrar':'Por pagar'}</span><span className="text-xs text-blue-700">{a.dueDate}</span></div>
-        <p className="text-sm text-slate-800 mt-1 font-semibold break-words">{a.payee||a.number||'Movimiento'}</p><p className="text-xs text-slate-500">{pesos(Number(a.amount||0)-Number(a.paidAmount||0))}</p>
-      </div>)}</div>}
-      <p className="mt-2 text-xs text-slate-500">Los avisos push se configuran por dispositivo.</p>
-    </div>}
     {pushAbierto&&<PushControl cerrar={()=>setPushAbierto(false)}/>}
     <div className="sii-pro-hero">
       <div className="sii-pro-heroheader">
@@ -105,10 +72,25 @@ export default function ProWorkspace({mode,onNavigate,collectItems,payItems,pago
         </div>
         <span className="sii-pro-herotag"><span className="sii-pro-live"/> Datos en tiempo real</span>
       </div>
-      <div className="sii-pro-metrics">
-        <div className="sii-pro-metric"><span className="sii-pro-metric-label">Cobros pendientes</span><strong>{pesos(resumen.cobrosPendientes)}</strong><span className="sii-pro-metric-hint">Facturas por cobrar</span></div>
-        <div className="sii-pro-metric"><span className="sii-pro-metric-label">Pagos Avanzados pendientes</span><strong>{pesos(resumen.pagosPendientes)}</strong><span className="sii-pro-metric-hint">Fuente financiera · cheques</span></div>
-        <div className="sii-pro-metric"><span className="sii-pro-metric-label">Vencimientos cercanos</span><strong>{number(resumen.inminentes)}</strong><span className="sii-pro-metric-hint">Hasta 2 días · todas las fuentes</span></div>
+      <div className="sii-finance-board">
+        <button type="button" className="sii-finance-collect" onClick={()=>onNavigate('collect')} aria-label={'Ver Cobros. Pendiente '+pesos(resumen.cobrosPendientes)}>
+          <span className="sii-finance-label">COBROS PENDIENTES <span aria-hidden="true">↗</span></span>
+          <strong className="sii-finance-primary-value">{pesos(resumen.cobrosPendientes)}</strong>
+          <span className="sii-finance-sub">Total a cobrar · sin límite de vencimiento</span>
+        </button>
+        <div className="sii-finance-secondary">
+          <button type="button" className="sii-finance-small" onClick={()=>onNavigate('pay')}>
+            <span className="sii-finance-label">PAGOS PENDIENTES <span aria-hidden="true">↗</span></span>
+            <strong className="sii-finance-value">{pesos(resumen.pagosPendientes)}</strong>
+            <span className="sii-finance-sub">Abrir Pagos Avanzados</span>
+          </button>
+          <div className="sii-finance-small sii-finance-difference">
+            <span className="sii-finance-label">DIFERENCIA ESTIMADA</span>
+            <strong className={'sii-finance-value '+(resumen.diferencia>=0?'sii-finance-positive':'sii-finance-negative')}>{pesos(resumen.diferencia)}</strong>
+            <span className="sii-finance-sub">Cobros menos pagos pendientes</span>
+          </div>
+        </div>
+        <p className="sii-finance-footnote">Proyección orientativa de obligaciones registradas, no representa el saldo de Caja ni la liquidez disponible.</p>
       </div>
     </div>
     {(mode==='collect'||mode==='wallet'||mode==='expenses')&&
