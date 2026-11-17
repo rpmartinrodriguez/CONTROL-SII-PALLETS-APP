@@ -19,21 +19,24 @@ const modules = [
 const pesos = number => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(number)||0);
 const number = value => new Intl.NumberFormat('es-AR').format(Number(value)||0);
 const out = list => list.filter(item=>item.status !== 'paid');
-export default function ProWorkspace({mode,onNavigate,collectItems,payItems,alerts,searchTerm,setSearchTerm}) {
+export default function ProWorkspace({mode,onNavigate,collectItems,payItems,pagosAvanzados,alerts,searchTerm,setSearchTerm}) {
   const [alertasAbiertas,setAlertasAbiertas] = useState(false);
   const [pushAbierto,setPushAbierto] = useState(false);
   const seleccionado = modules.find(x=>x.id===mode)||modules[0];
   const resumen = useMemo(()=>{
     const cobros = out(collectItems);
     const pagos = out(payItems);
+    const pagAvanzados=pagosAvanzados?.ready && Array.isArray(pagosAvanzados.items)
+      ? pagosAvanzados.items.filter(i=>String(i.estado||'').toUpperCase()!=='PAGADO') : [];
     const cobrosPendientes=cobros.reduce((total,i)=>total+Math.max(0,Number(i.amount||0)-Number(i.paidAmount||0)),0);
-    const pagosPendientes=pagos.reduce((total,i)=>total+Math.max(0,Number(i.amount||0)-Number(i.paidAmount||0)),0);
+    const pagosPendientes=pagAvanzados.reduce((total,i)=>total+Math.max(0,Number(i.importe||0)),0);
     const hoy=new Date();hoy.setHours(0,0,0,0);
     const hasta=new Date(hoy);hasta.setDate(hasta.getDate()+2);
     const hastaKey=[hasta.getFullYear(),String(hasta.getMonth()+1).padStart(2,'0'),String(hasta.getDate()).padStart(2,'0')].join('-');
-    const inminentes=[...cobros,...pagos].filter(item=>item.dueDate&&item.dueDate<=hastaKey).length;
+    const inminentes=[...cobros,...pagos].filter(item=>item.dueDate&&item.dueDate<=hastaKey).length+
+      pagAvanzados.filter(item=>item.fecha&&item.fecha<=hastaKey).length;
     return {cobrosPendientes,pagosPendientes,inminentes,totalMovimientos:collectItems.length+payItems.length};
-  },[collectItems,payItems]);
+  },[collectItems,payItems,pagosAvanzados]);
   return <>
     <aside className="sii-pro-sidebar hidden md:flex" aria-label="Secciones de la aplicación">
       <div className="sii-pro-brand">
@@ -86,8 +89,8 @@ export default function ProWorkspace({mode,onNavigate,collectItems,payItems,aler
       </div>
       <div className="sii-pro-metrics">
         <div className="sii-pro-metric"><span className="sii-pro-metric-label">Cobros pendientes</span><strong>{pesos(resumen.cobrosPendientes)}</strong><span className="sii-pro-metric-hint">Facturas por cobrar</span></div>
-        <div className="sii-pro-metric"><span className="sii-pro-metric-label">Pagos registrados pendientes</span><strong>{pesos(resumen.pagosPendientes)}</strong><span className="sii-pro-metric-hint">Módulo de pagos tradicional</span></div>
-        <div className="sii-pro-metric"><span className="sii-pro-metric-label">Vencimientos cercanos</span><strong>{number(resumen.inminentes)}</strong><span className="sii-pro-metric-hint">Hasta 2 días · movimientos tradicionales</span></div>
+        <div className="sii-pro-metric"><span className="sii-pro-metric-label">Pagos Avanzados pendientes</span><strong>{pesos(resumen.pagosPendientes)}</strong><span className="sii-pro-metric-hint">Fuente financiera · cheques</span></div>
+        <div className="sii-pro-metric"><span className="sii-pro-metric-label">Vencimientos cercanos</span><strong>{number(resumen.inminentes)}</strong><span className="sii-pro-metric-hint">Hasta 2 días · todas las fuentes</span></div>
       </div>
     </div>
     {(mode==='collect'||mode==='wallet'||mode==='expenses')&&
