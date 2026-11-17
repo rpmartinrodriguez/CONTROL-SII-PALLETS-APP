@@ -998,6 +998,7 @@ export default function App() {
         if(item.type === 'expense') collectionName = 'gastos_public_shared'; 
         if(item.type === 'cash') collectionName = 'caja_public_shared';
         await deleteDoc(doc(db, collectionName, 'main_list', 'items', item.id));
+        void solicitarChequeoPush();
     };
 
     const changeMode = (newMode) => {
