@@ -2,26 +2,26 @@ import React, { useMemo, useState } from 'react';
 import CentroNotificaciones from './CentroNotificaciones';
 import {
   IconBriefcase, IconBox, IconDownload, IconFileText,
-  IconFolder, IconLayers, IconSearch, IconTrendingUp, IconWallet
+  IconFolder, IconLayers, IconSearch, IconTrendingUp, IconWallet,
+  IconChevronLeft, IconChevronRight, IconBank, IconPieChart, IconBuilding
 } from './Icons';
 import PushControl from './PushControl';
 
 const modules = [
   {id:'pay',title:'Pagos',hint:'Compromisos y vencimientos',Icon:IconWallet},
   {id:'collect',title:'Cobros',hint:'Facturas por cobrar',Icon:IconBriefcase},
-  {id:'balance',title:'Balance',hint:'Tu posición financiera',Icon:IconTrendingUp},
+  {id:'balance',title:'Balance',hint:'Tu posición financiera',Icon:IconPieChart},
   {id:'cashbox',title:'Caja',hint:'Ingresos y egresos',Icon:IconBox},
-  {id:'billing',title:'Facturación',hint:'Comprobantes e IVA',Icon:IconFileText},
+  {id:'billing',title:'Facturación',hint:'Comprobantes e IVA',Icon:IconBuilding},
   {id:'quotesPDF',title:'Presupuestos',hint:'Clientes y cotizaciones',Icon:IconFileText},
-  {id:'wallet',title:'Cartera',hint:'Cheques y seguimiento',Icon:IconFolder},
+  {id:'wallet',title:'Cartera',hint:'Cheques y seguimiento',Icon:IconBank},
   {id:'pallets',title:'Pallets',hint:'Costos y producción',Icon:IconLayers},
   {id:'migration',title:'Respaldo',hint:'Auditoría y migración',Icon:IconDownload}
 ];
 const pesos = number => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(number)||0);
 const out = list => list.filter(item=>item.status !== 'paid');
-export default function ProWorkspace({mode,onNavigate,onOpenNotification,collectItems,payItems,pagosAvanzados,searchTerm,setSearchTerm}) {
+export default function ProWorkspace({mode,onNavigate,onOpenNotification,collectItems,payItems,pagosAvanzados,searchTerm,setSearchTerm,sidebarMinimizado,setSidebarMinimizado}) {
   const [pushAbierto,setPushAbierto] = useState(false);
-  const seleccionado = modules.find(x=>x.id===mode)||modules[0];
   const resumen = useMemo(()=>{
     const cobros = out(collectItems);
     const pagAvanzados=pagosAvanzados?.ready && Array.isArray(pagosAvanzados.items)
@@ -34,22 +34,28 @@ export default function ProWorkspace({mode,onNavigate,onOpenNotification,collect
   return <>
     <aside className="sii-pro-sidebar hidden md:flex" aria-label="Secciones de la aplicación">
       <div className="sii-pro-brand">
-        <img src="/app-icon.svg" alt="Logo SII PALLETS" className="w-12 h-12 rounded-2xl object-contain bg-white p-1"/>
-        <div className="min-w-0">
+        <img src="/app-icon.svg" alt="Logo SII PALLETS" className="w-12 h-12 rounded-2xl object-contain bg-white p-1 shrink-0"/>
+        <div className="sii-sidebar-text min-w-0">
           <strong className="text-base block tracking-wide">SII PALLETS</strong>
           <small className="text-[10px] uppercase tracking-[.24em] text-slate-400">Control inteligente</small>
         </div>
       </div>
-      <p className="sii-pro-nav-label">MENÚ PRINCIPAL</p>
+      <button type="button" className="sii-sidebar-toggle" onClick={()=>setSidebarMinimizado(v=>!v)}
+        aria-label={sidebarMinimizado?'Expandir menú lateral':'Minimizar menú lateral'} aria-expanded={!sidebarMinimizado}
+        title={sidebarMinimizado?'Expandir menú':'Minimizar menú'}>
+        {sidebarMinimizado?<IconChevronRight className="w-5 h-5"/>:<IconChevronLeft className="w-5 h-5"/>}
+        <span className="sii-sidebar-text">{sidebarMinimizado?'':'Minimizar menú'}</span>
+      </button>
+      <p className="sii-pro-nav-label sii-sidebar-text">MENÚ PRINCIPAL</p>
       <div className="sii-pro-navigation">
         {modules.map(({id,title,hint,Icon})=><button key={id} type="button"
           onClick={()=>onNavigate(id)} className={'sii-pro-navitem '+(mode===id?'sii-pro-navitem-active':'')}
           aria-current={mode===id?'page':undefined} title={hint}>
-          <Icon className="w-5 h-5 shrink-0"/><span className="truncate">{title}</span>
+          <Icon className="w-5 h-5 shrink-0"/><span className="sii-sidebar-text truncate">{title}</span>
           {mode===id&&<span className="sii-pro-navdot" aria-hidden="true"/>}
         </button>)}
       </div>
-      <div className="sii-pro-sidefoot"><span className="sii-pro-live"/> FIREBASE EN LÍNEA <small className="block mt-1 text-slate-400">Cuenta personal · SII PRO</small></div>
+      <div className="sii-pro-sidefoot"><span className="sii-pro-live"/><span className="sii-sidebar-text"> FIREBASE EN LÍNEA <small className="block mt-1 text-slate-400">Cuenta personal · SII PRO</small></span></div>
     </aside>
     <div className="sii-pro-topline">
       <div className="flex items-center gap-3 min-w-0">
@@ -63,36 +69,34 @@ export default function ProWorkspace({mode,onNavigate,onOpenNotification,collect
       </div>
     </div>
     {pushAbierto&&<PushControl cerrar={()=>setPushAbierto(false)}/>}
-    <div className="sii-pro-hero">
+    {mode==='collect'&&<div className="sii-pro-hero sii-hero-compact">
       <div className="sii-pro-heroheader">
         <div className="min-w-0">
-          <span className="sii-pro-eyebrow-light">SII / OPERACIONES</span>
-          <h1 className="sii-pro-title">{seleccionado.title}</h1>
-          <p className="text-sm text-slate-300 mt-2">{seleccionado.hint}. Toda tu operación, más clara y rápida.</p>
+          <span className="sii-pro-eyebrow-light">RESUMEN FINANCIERO</span>
+          <h1 className="text-base sm:text-lg font-extrabold tracking-tight mt-1">Cobros y pagos</h1>
         </div>
-        <span className="sii-pro-herotag"><span className="sii-pro-live"/> Datos en tiempo real</span>
       </div>
       <div className="sii-finance-board">
         <button type="button" className="sii-finance-collect" onClick={()=>onNavigate('collect')} aria-label={'Ver Cobros. Pendiente '+pesos(resumen.cobrosPendientes)}>
           <span className="sii-finance-label">COBROS PENDIENTES <span aria-hidden="true">↗</span></span>
           <strong className="sii-finance-primary-value">{pesos(resumen.cobrosPendientes)}</strong>
-          <span className="sii-finance-sub">Total a cobrar · sin límite de vencimiento</span>
+          
         </button>
         <div className="sii-finance-secondary">
           <button type="button" className="sii-finance-small" onClick={()=>onNavigate('pay')}>
             <span className="sii-finance-label">PAGOS PENDIENTES <span aria-hidden="true">↗</span></span>
             <strong className="sii-finance-value">{pesos(resumen.pagosPendientes)}</strong>
-            <span className="sii-finance-sub">Abrir Pagos Avanzados</span>
+            
           </button>
           <div className="sii-finance-small sii-finance-difference">
             <span className="sii-finance-label">DIFERENCIA ESTIMADA</span>
             <strong className={'sii-finance-value '+(resumen.diferencia>=0?'sii-finance-positive':'sii-finance-negative')}>{pesos(resumen.diferencia)}</strong>
-            <span className="sii-finance-sub">Cobros menos pagos pendientes</span>
+            
           </div>
         </div>
-        <p className="sii-finance-footnote">Proyección orientativa de obligaciones registradas, no representa el saldo de Caja ni la liquidez disponible.</p>
+        <p className="sii-finance-footnote">Estimación de pendientes, no es saldo de caja.</p>
       </div>
-    </div>
+    </div>}
     {(mode==='collect'||mode==='wallet'||mode==='expenses')&&
       <label className="sii-pro-search"><IconSearch className="w-5 h-5 text-blue-600 shrink-0"/>
         <input aria-label="Buscar comprobantes" type="search" placeholder="Buscar por cliente, número o comprobante…"
