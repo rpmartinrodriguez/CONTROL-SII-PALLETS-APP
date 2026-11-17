@@ -48,56 +48,63 @@ const normalize=(kind,id,obj)=>({
   status:String(obj?.status||obj?.estado||'PENDIENTE').toUpperCase(),
   due:String(obj?.dueDate||obj?.fecha||obj?.date||'').slice(0,10)
 });
-async function getData(db) {
-  // Todos estos documentos pertenecen a sii-pallets-app. No se consulta otro proyecto.
-  const [cobros,pagos,avanzados,presupuestos]=await Promise.all([
-    db.collection('cobros_public_shared/main_list/items').get(),
-    db.collection('cheques_public_shared/main_list/items').get(),
-    db.doc('finanzas/cheques').get(),
-    db.collection('historial_presupuestos_sii').get()
-  ]);
-  return {
-    presupuestos:presupuestos.docs.map(d=>({
-      key:'presupuesto:'+d.id,kind:'presupuesto',id:d.id,
-      name:String(d.data()?.cliente?.razonSocial||'Sin cliente').slice(0,170),
-      number:String(d.data()?.numero||d.id).slice(0,90),
-      amount:(Number(d.data()?.totalCentavos)||0)/100,
-      paidAmount:0,status:'EMITIDO',due:String(d.data()?.fecha||'').slice(0,10)
-    })),
-    cobros:cobros.docs.map(d=>normalize('cobro',d.id,d.data())),
-    pagos:pagos.docs.map(d=>normalize('pago',d.id,d.data())),
-    avanzados:Array.isArray(avanzados.data()?.data)
-      ? avanzados.data().data.map((i,index)=>normalize('pago_avanzado',i.id??index,i)):[]
-  };
-}
-function changed(current,prev) {
-  if(current.kind==='presupuesto'){
-    return prev?null:{
-      category:'new_quote',title:'Nuevo presupuesto registrado',
-      body:current.name+' · '+money(current.amount)+' · Presupuesto '+current.number
+// Un evento identifica un comprobante; los datos provienen exclusivamente de Firestore.
+// No se acepta desde el navegador el cliente, el importe ni el texto de la notificación.
+const EVENT_PATHS={
+  cobro:'cobros_public_shared/main_list/items',
+  pago:'cheques_public_shared/main_list/items',
+  presupuesto:'historial_presupuestos_sii'
+};
+const RECENT_WINDOW_MS=30*60*1000;
+export const isRecentEventTime=(value,now=Date.now())=>{
+  const millis=typeof value?.toMillis==='function'?value.toMillis():
+    typeof value==='string'||typeof value==='number'?new Date(value).getTime():NaN;
+  return Number.isFinite(millis) && millis<=now+120000 && now-millis<=RECENT_WINDOW_MS;
+};
+export function eventForMovement(kind,id,action,record,now=Date.now()){
+  if(!record||!['create','payment'].includes(action))return null;
+  const number=String(record.number||record.nro||id).slice(0,90);
+  const name=String(record.payee||record.nombre||record.cliente?.razonSocial||'Sin nombre').slice(0,170);
+  const amount=kind==='presupuesto'?(Number(record.totalCentavos)||0)/100:
+    Number(record.amount??record.importe??0)||0;
+  const ref=' · Ref. '+number;
+  const cobro=kind==='cobro';
+  if(action==='create'){
+    const created=kind==='presupuesto'?record.guardadoEn:
+      kind==='pago_avanzado'?record.creadoEn:record.createdAt;
+    if(!isRecentEventTime(created,now))return null;
+    return {
+      id:'mov:'+kind+':'+id+':new:'+sha(String(created?.toMillis?.()??created)),
+      category:kind==='presupuesto'?'new_quote':cobro?'new_collect':'new_pay',
+      title:kind==='presupuesto'?'Nuevo presupuesto registrado':cobro?'Nuevo cobro registrado':'Nuevo pago registrado',
+      body:name+' · '+money(amount)+(kind==='presupuesto'?' · Presupuesto '+number:ref)
     };
   }
-  const cobro=current.kind==='cobro';
-  const ref=' · Ref. '+current.number;
-  if(!prev) return {
-    category:cobro?'new_collect':'new_pay',
-    title:cobro?'Nuevo cobro registrado':'Nuevo pago registrado',
-    body:current.name+' · '+money(current.amount)+ref
+  if(kind==='presupuesto')return null;
+  if(kind==='pago_avanzado'){
+    if(!['PAGADO','PAID'].includes(String(record.estado||'').toUpperCase())||
+       !isRecentEventTime(record.modificadoEn,now))return null;
+    return {
+      id:'mov:pago_avanzado:'+id+':paid:'+sha(String(record.modificadoEn)),
+      category:'paid_pay',title:'Pago cancelado / saldado',body:name+' · '+money(amount)+ref
+    };
+  }
+  const history=Array.isArray(record.paymentHistory)?record.paymentHistory:[];
+  const last=history[history.length-1];
+  if(!last||!isRecentEventTime(last.date,now))return null;
+  const payment=Number(last.amount)||0;
+  const paid=Number(record.paidAmount)||0;
+  if(payment<=0||paid<=0||amount<=0)return null;
+  const settled=paid>=amount||isPaid(record.status||record.estado);
+  const partial=!settled&&paid<amount;
+  return {
+    id:'mov:'+kind+':'+id+':'+(partial?'partial':'paid')+':'+sha(history.length+':'+String(last.date)+':'+payment),
+    category:partial?(cobro?'partial_collect':'partial_pay'):(cobro?'paid_collect':'paid_pay'),
+    title:partial?(cobro?'PARCIAL · Cobro registrado':'PARCIAL · Pago registrado'):
+      (cobro?'Cobro cancelado / saldado':'Pago cancelado / saldado'),
+    body:partial?name+' · PARCIAL '+money(payment)+' · Saldo '+money(amount-paid)+ref:
+      name+' · '+money(payment)+ref
   };
-  if(current.paidAmount>Number(prev.paidAmount||0) &&
-     current.paidAmount>0 && current.paidAmount<current.amount &&
-     !isPaid(current.status))return {
-    category:cobro?'partial_collect':'partial_pay',
-    title:cobro?'PARCIAL · Cobro registrado':'PARCIAL · Pago registrado',
-    body:current.name+' · PARCIAL '+money(current.paidAmount-Number(prev.paidAmount||0))+
-      ' · Saldo '+money(current.amount-current.paidAmount)+ref
-  };
-  if(!isPaid(prev.status)&&isPaid(current.status))return {
-    category:cobro?'paid_collect':'paid_pay',
-    title:cobro?'Cobro cancelado / saldado':'Pago cancelado / saldado',
-    body:current.name+' · '+money(current.amount)+ref
-  };
-  return null;
 }
 function argDate() {
   const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
@@ -151,61 +158,59 @@ async function deliver(db,messaging,event,devices) {
     throw error;
   }
 }
-async function snapshotChanges(db,group,items) {
-  const ref=db.doc('sii_push_snapshot/'+group);
-  const current=Object.fromEntries(items.map(i=>[i.key,i]));
-  if(JSON.stringify(current).length>850000)throw Error('Hay demasiados registros para el snapshot de '+group);
-  return db.runTransaction(async tx=>{
-    const snap=await tx.get(ref);
-    const before=snap.data()?.items||{};
-    const eventos=snap.exists ? items.flatMap(item=>{
-      const event=changed(item,before[item.key]);
-      return event?[{
-        id:'mov:'+item.key+':'+event.category+':'+item.status+':'+sha(JSON.stringify(item)),
-        ...event
-      }]:[];
-    }):[];
-    // Detectar también anulación/eliminación, distinta de pago/saldo cancelado.
-    if(snap.exists)for(const [key,prev] of Object.entries(before)){
-      if(current[key])continue;
-      if(prev.kind==='presupuesto')continue;
-      const cobro=prev.kind==='cobro';
-      eventos.push({
-        id:'eliminado:'+key+':'+sha(JSON.stringify(prev)),
-        category:cobro?'deleted_collect':'deleted_pay',
-        title:cobro?'Cobro eliminado / anulado':'Pago eliminado / anulado',
-        body:prev.name+' · '+money(prev.amount)+' · Ref. '+prev.number
-      });
-    }
-    // El escaneo solo lee si no hay novedades. Anteriormente se escribían
-    // tres documentos de snapshot en CADA comprobación, aun sin cambios.
-    // En Spark eso consume cuota innecesariamente.
-    if (!snap.exists || JSON.stringify(before) !== JSON.stringify(current)) {
-      tx.set(ref,{items:current,updatedAt:FieldValue.serverTimestamp()});
-    }
-    return {baseline:!snap.exists,eventos};
-  });
+// Un comprobante = una lectura Firestore, sin barrer colecciones enteras.
+export async function syncPushEvent(input){
+  const kind=String(input?.kind||'');
+  const id=String(input?.id||'');
+  const action=String(input?.action||'');
+  if(!['cobro','pago','pago_avanzado','presupuesto'].includes(kind)||
+     !/^[A-Za-z0-9_-]{1,110}$/.test(id)||
+     !['create','payment'].includes(action)||
+     (kind==='presupuesto'&&action!=='create')){
+    const error=new Error('Evento push inválido.');error.status=400;throw error;
+  }
+  const {db,messaging}=firebaseAdmin();
+  const ref=kind==='pago_avanzado'?db.doc('finanzas/cheques'):
+    db.doc(EVENT_PATHS[kind]+'/'+id);
+  const docSnap=await ref.get();
+  if(!docSnap.exists)return {evento:'no_encontrado',avisosEnviados:0,lecturasComprobantes:1};
+  const record=kind==='pago_avanzado'?
+    (Array.isArray(docSnap.data()?.data)?docSnap.data().data.find(x=>String(x.id)===id):null):
+    docSnap.data();
+  const event=eventForMovement(kind,id,action,record);
+  if(!event)return {evento:'sin_cambios_notificables',avisosEnviados:0,lecturasComprobantes:1};
+  const devices=await getSubscribers(db);
+  if(!devices.length)return {evento:'sin_dispositivos',avisosEnviados:0,lecturasComprobantes:1};
+  const sent=await deliver(db,messaging,event,devices);
+  return {evento:event.category,avisosEnviados:sent,dispositivos:devices.length,lecturasComprobantes:1};
 }
-export async function syncPush() {
+
+// Revisión diaria SOLO de comprobantes con vencimiento exacto dentro de dos días.
+// Se consulta el documento agregado de Pagos Avanzados una única vez.
+export async function syncPush(){
   const {db,messaging}=firebaseAdmin();
   const devices=await getSubscribers(db);
-  // Sin equipos habilitados no consumimos eventos ni adelantamos los snapshots.
-  // Así un fallo temporal de registro no descarta silenciosamente nuevos cobros.
-  if(!devices.length)return {
-    cambiosDetectados:0,avisosEnviados:0,gruposInicializados:0,
-    dispositivos:0,sinDispositivos:true,verificado:argDate()
-  };
-  const datasets=await getData(db);
-  let changes=0,sent=0,baselines=0;
-  for(const [group,items] of Object.entries(datasets)) {
-    const result=await snapshotChanges(db,group,items);
-    if(result.baseline)baselines++;
-    for(const event of result.eventos.slice(0,MAX_EVENTS)){
-      changes++;sent+=await deliver(db,messaging,event,devices);
+  if(!devices.length)return {cambiosDetectados:0,avisosEnviados:0,dispositivos:0,verificado:argDate()};
+  const day=plusDays(argDate(),2);
+  const cobros=db.collection(EVENT_PATHS.cobro);
+  const pagos=db.collection(EVENT_PATHS.pago);
+  const queries=[];
+  for(const [kind,col] of [['cobro',cobros],['pago',pagos]]){
+    for(const field of ['dueDate','date','fecha']){
+      queries.push(col.where(field,'==',day).get().then(snapshot=>
+        snapshot.docs.map(d=>normalize(kind,d.id,d.data()))));
     }
   }
-  const day=plusDays(argDate(),2);
-  for(const item of Object.values(datasets).flat().filter(x=>x.kind!=='presupuesto'&&!isPaid(x.status)&&x.due===day).slice(0,MAX_EVENTS)){
+  const advanced= db.doc('finanzas/cheques').get();
+  const [results,advanceSnap]=await Promise.all([Promise.all(queries),advanced]);
+  const byId=new Map(results.flat().map(item=>[item.key,item]));
+  for(const [i,obj] of (Array.isArray(advanceSnap.data()?.data)?advanceSnap.data().data:[]).entries()){
+    const item=normalize('pago_avanzado',obj.id??i,obj);
+    if(item.due===day)byId.set(item.key,item);
+  }
+  let sent=0,changes=0;
+  for(const item of byId.values()){
+    if(isPaid(item.status)||item.due!==day)continue;
     const cobro=item.kind==='cobro';
     const event={
       id:'vence:'+item.key+':'+day,
@@ -213,7 +218,8 @@ export async function syncPush() {
       title:cobro?'Cobro vence en 2 días':'Pago vence en 2 días',
       body:item.name+' · '+money(item.amount-item.paidAmount)+' · Ref. '+item.number+' · '+day
     };
+    changes++;
     sent+=await deliver(db,messaging,event,devices);
   }
-  return {cambiosDetectados:changes,avisosEnviados:sent,gruposInicializados:baselines,dispositivos:devices.length,verificado:argDate()};
+  return {cambiosDetectados:changes,avisosEnviados:sent,dispositivos:devices.length,verificado:argDate(),revisados:byId.size};
 }
