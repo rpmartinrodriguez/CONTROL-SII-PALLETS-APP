@@ -316,7 +316,7 @@ export default function PresupuestosPDF() {
       // Se despierta el motor de avisos únicamente en una emisión nueva.
       // Si el servicio no está disponible, el presupuesto ya guardado no se revierte.
       if(!existente && !editandoNumero){
-        solicitarChequeoPush();
+        solicitarChequeoPush({kind:'presupuesto',id:presupuesto.numero,action:'create'});
       }
       setQuote(q=>({...q,numero:presupuesto.numero}));
       setGuardadoVersion(JSON.stringify(presupuesto));
