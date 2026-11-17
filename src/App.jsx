@@ -29,7 +29,7 @@ import { solicitarChequeoPush } from './utils/pushClient';
 
 export default function App() {
     const [mode, setMode] = useState(() => (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('migracion') === '1' ? 'migration' : 'pay')); // Inicia en la nueva pestaña de Pagos
-    const pagosAvanzados = usePagosReales(mode === 'balance'); // Solo escucha la fuente de Pagos al consultar Balance
+    const pagosAvanzados = usePagosReales(true); // Indicadores de Pagos Avanzados y Balance comparten un único lector
     const pagosIframeRef = useRef(null);
     const [user, setUser] = useState(null); 
     const [payItems, setPayItems] = useState([]); 
@@ -1028,7 +1028,7 @@ export default function App() {
     return (
         <div className="sii-pro-app w-full min-h-screen relative pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-8">
             <ProWorkspace mode={mode} onNavigate={changeMode}
-              collectItems={collectItems} payItems={payItems} alerts={alerts}
+              collectItems={collectItems} payItems={payItems} pagosAvanzados={pagosAvanzados} alerts={alerts}
               searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
             {/* Contenedor sin márgenes estrictos */}
             <div className="sii-pro-main">
