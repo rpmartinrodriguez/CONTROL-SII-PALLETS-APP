@@ -50,6 +50,7 @@ test('No se toma el número del ejemplo previo como fijo y nombres son seguros',
 test('Datos fijos del emisor y formato ARS',()=>{
  assert.equal(EMISOR.razonSocial,'RIOLFO MARTIN GUSTAVO');
  assert.equal(EMISOR.localidad,'GUALEGUAYCHÚ');
+ assert.equal(EMISOR.cuit,'20257115543');
  assert.equal(EMISOR.telefono,'3446-560271');
  assert.equal(EMISOR.ingresosBrutos,'20-25711554-3');
  assert.equal(EMISOR.inicioActividades,'01/09/2022');
