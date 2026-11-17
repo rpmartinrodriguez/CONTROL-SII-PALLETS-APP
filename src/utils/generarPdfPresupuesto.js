@@ -128,7 +128,21 @@ export async function generarPdfPresupuesto(data) {
     if(y+height>255) {page++;y=paginaSiguiente(pdf,data,page);}
     y=escribirRenglon(pdf,row,i,y,totals.cuenta);
   }
-  if(y>254) {page++;y=paginaSiguiente(pdf,data,page);}
+  // La nota queda debajo de los productos, antes del bloque de totales.
+  // Si no entra en la página actual, se imprime en la página siguiente.
+  const nota=String(data.nota||'').trim().slice(0,100);
+  if(nota){
+    pdf.setFont('helvetica','normal');pdf.setFontSize(7);
+    const lineas=pdf.splitTextToSize('Nota: '+nota,176);
+    const altoNota=Math.max(10,lineas.length*4+5);
+    if(y+altoNota>252){page++;y=paginaSiguiente(pdf,data,page);}
+    pdf.setFillColor(245,248,252);
+    pdf.rect(10,y+2,190,altoNota,'F');
+    pdf.setTextColor(20,32,50);
+    pdf.text(lineas,14,y+7);
+    y+=altoNota+3;
+  }
+  if(y>254){page++;y=paginaSiguiente(pdf,data,page);}
   ponerTotales(pdf,totals,totals.cuenta,y);
   return {blob:pdf.output('blob'),filename:nombreArchivo(data),totals};
 }
