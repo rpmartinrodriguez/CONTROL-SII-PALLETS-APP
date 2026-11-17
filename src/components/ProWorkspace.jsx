@@ -33,8 +33,9 @@ export default function ProWorkspace({mode,onNavigate,collectItems,payItems,pago
     const hoy=new Date();hoy.setHours(0,0,0,0);
     const hasta=new Date(hoy);hasta.setDate(hasta.getDate()+2);
     const hastaKey=[hasta.getFullYear(),String(hasta.getMonth()+1).padStart(2,'0'),String(hasta.getDate()).padStart(2,'0')].join('-');
-    const inminentes=[...cobros,...pagos].filter(item=>item.dueDate&&item.dueDate<=hastaKey).length+
-      pagAvanzados.filter(item=>item.fecha&&item.fecha<=hastaKey).length;
+    const desdeKey=[hoy.getFullYear(),String(hoy.getMonth()+1).padStart(2,'0'),String(hoy.getDate()).padStart(2,'0')].join('-');
+    const inminentes=[...cobros,...pagos].filter(item=>item.dueDate&&item.dueDate>=desdeKey&&item.dueDate<=hastaKey).length+
+      pagAvanzados.filter(item=>item.fecha&&item.fecha>=desdeKey&&item.fecha<=hastaKey).length;
     return {cobrosPendientes,pagosPendientes,inminentes,totalMovimientos:collectItems.length+payItems.length};
   },[collectItems,payItems,pagosAvanzados]);
   return <>
