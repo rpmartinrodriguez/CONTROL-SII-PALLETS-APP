@@ -73,14 +73,14 @@ export function abrirVisorImpresion({titulo,contenido,css,nombreArchivo}){
     const element=document.createElement('div');
     // html2canvas omite elementos situados fuera del área visible en iOS.
     // Usamos una capa blanca bajo el visor, presente en el documento.
-    element.style.cssText='position:absolute;top:0;left:0;width:794px;background:white;z-index:-1;pointer-events:none;padding:12px;';
+    element.style.cssText='position:absolute;top:0;left:0;width:794px;background:white;z-index:9998;pointer-events:none;padding:12px;';
     element.innerHTML='<style>'+(css||'')+'</style><div class="report-container">'+(contenido||'')+'</div>';
     document.body.appendChild(element);
     try{
       return await html2pdf().set({
         margin:10,filename,
         image:{type:'jpeg',quality:.96},
-        html2canvas:{scale:mobile?1.2:1.7,useCORS:true,logging:false},
+        html2canvas:{scale:mobile?1.15:1.7,windowWidth:mobile?1080:undefined,useCORS:true,logging:false},
         jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
       }).from(element).outputPdf('blob');
     }finally{element.remove();}
