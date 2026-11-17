@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { autoEnrollmentEnabled } from '../../netlify/lib/push-core.mjs';
+import { autoEnrollmentEnabled, isQuotaExceeded } from '../../netlify/lib/push-core.mjs';
 
 test('Push universal está deshabilitado por defecto y nunca requiere UID manual', () => {
   const prev=process.env.SII_PUSH_AUTO_ENROLLMENT;
@@ -19,4 +19,12 @@ test('Push universal está deshabilitado por defecto y nunca requiere UID manual
     if(oldUid===undefined)delete process.env.SII_PUSH_ALLOWED_UIDS;
     else process.env.SII_PUSH_ALLOWED_UIDS=oldUid;
   }
+});
+
+test('distingue errores de cuota Firestore de errores de acceso',()=>{
+  assert.equal(isQuotaExceeded({code:8,message:'8 RESOURCE_EXHAUSTED: Quota exceeded.'}),true);
+  assert.equal(isQuotaExceeded({code:'resource-exhausted'}),true);
+  assert.equal(isQuotaExceeded({message:'Quota exceeded'}),true);
+  assert.equal(isQuotaExceeded({code:7,message:'PERMISSION_DENIED'}),false);
+  assert.equal(isQuotaExceeded({code:14,message:'UNAVAILABLE'}),false);
 });
