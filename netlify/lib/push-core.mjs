@@ -8,7 +8,10 @@ export const sha = s => createHash('sha256').update(String(s)).digest('hex');
 const MAX_EVENTS = 150;
 const money = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n)||0);
 const isPaid = s => ['PAGADO','PAID','CANCELADO','COBRADO','SALDADO'].includes(String(s||'').toUpperCase());
-export const allowed = () => new Set((process.env.SII_PUSH_ALLOWED_UIDS||'').split(',').map(x=>x.trim()).filter(Boolean));
+// Interruptor UNIVERSAL: se configura una sola vez, nunca por dispositivo.
+// Se mantiene apagado hasta que el acceso a la aplicación esté restringido
+// a personal autorizado. Firebase Anonymous NO demuestra esa autorización.
+export const autoEnrollmentEnabled = () => process.env.SII_PUSH_AUTO_ENROLLMENT === 'true';
 
 export function firebaseAdmin() {
   const raw=process.env.SII_FIREBASE_SERVICE_ACCOUNT_JSON;
@@ -19,12 +22,13 @@ export function firebaseAdmin() {
   return {db:getFirestore(app),messaging:getMessaging(app),auth:getAuth(app)};
 }
 export async function verifyAuthorized(request) {
-  const valid=allowed();
-  if(!valid.size) throw Error('Falta autorizar el UID en SII_PUSH_ALLOWED_UIDS');
+  if (!autoEnrollmentEnabled()) throw Error('La inscripción automática de push está desactivada en el servidor.');
   const token=(request.headers.get('authorization')||'').replace(/^Bearer /,'');
   if(!token) throw Error('Falta la sesión de Firebase');
+  // Verificamos el ID token en el servidor y asociamos el dispositivo a su UID.
+  // El token NO autoriza a un usuario ajeno: ese control debe existir en la app.
   const user=await firebaseAdmin().auth.verifyIdToken(token,true);
-  if(!valid.has(user.uid)) throw Error('UID anónimo no autorizado');
+  if(!user.uid) throw Error('Sesión Firebase sin UID');
   return user.uid;
 }
 export const jsonResponse=(status,data)=>new Response(JSON.stringify(data),{
@@ -79,8 +83,8 @@ function plusDays(date,days) {
 }
 async function getSubscribers(db) {
   const snap=await db.collection('sii_push_devices').where('enabled','==',true).get();
-  const valid=allowed();
-  return snap.docs.map(d=>d.data()).filter(x=>valid.has(x.uid)&&typeof x.token==='string'&&x.token.length>20);
+  if(!autoEnrollmentEnabled()) return [];
+  return snap.docs.map(d=>d.data()).filter(x=>Boolean(x.uid)&&typeof x.token==='string'&&x.token.length>20);
 }
 async function deliver(db,messaging,event,devices) {
   if(!devices.length)return 0;
