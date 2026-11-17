@@ -50,12 +50,20 @@ const normalize=(kind,id,obj)=>({
 });
 async function getData(db) {
   // Todos estos documentos pertenecen a sii-pallets-app. No se consulta otro proyecto.
-  const [cobros,pagos,avanzados]=await Promise.all([
+  const [cobros,pagos,avanzados,presupuestos]=await Promise.all([
     db.collection('cobros_public_shared/main_list/items').get(),
     db.collection('cheques_public_shared/main_list/items').get(),
-    db.doc('finanzas/cheques').get()
+    db.doc('finanzas/cheques').get(),
+    db.collection('historial_presupuestos_sii').get()
   ]);
   return {
+    presupuestos:presupuestos.docs.map(d=>({
+      key:'presupuesto:'+d.id,kind:'presupuesto',id:d.id,
+      name:String(d.data()?.cliente?.razonSocial||'Sin cliente').slice(0,170),
+      number:String(d.data()?.numero||d.id).slice(0,90),
+      amount:(Number(d.data()?.totalCentavos)||0)/100,
+      paidAmount:0,status:'EMITIDO',due:String(d.data()?.fecha||'').slice(0,10)
+    })),
     cobros:cobros.docs.map(d=>normalize('cobro',d.id,d.data())),
     pagos:pagos.docs.map(d=>normalize('pago',d.id,d.data())),
     avanzados:Array.isArray(avanzados.data()?.data)
@@ -63,12 +71,26 @@ async function getData(db) {
   };
 }
 function changed(current,prev) {
+  if(current.kind==='presupuesto'){
+    return prev?null:{
+      category:'new_quote',title:'Nuevo presupuesto registrado',
+      body:current.name+' · '+money(current.amount)+' · Presupuesto '+current.number
+    };
+  }
   const cobro=current.kind==='cobro';
   const ref=' · Ref. '+current.number;
   if(!prev) return {
     category:cobro?'new_collect':'new_pay',
     title:cobro?'Nuevo cobro registrado':'Nuevo pago registrado',
     body:current.name+' · '+money(current.amount)+ref
+  };
+  if(current.paidAmount>Number(prev.paidAmount||0) &&
+     current.paidAmount>0 && current.paidAmount<current.amount &&
+     !isPaid(current.status))return {
+    category:cobro?'partial_collect':'partial_pay',
+    title:cobro?'PARCIAL · Cobro registrado':'PARCIAL · Pago registrado',
+    body:current.name+' · PARCIAL '+money(current.paidAmount-Number(prev.paidAmount||0))+
+      ' · Saldo '+money(current.amount-current.paidAmount)+ref
   };
   if(!isPaid(prev.status)&&isPaid(current.status))return {
     category:cobro?'paid_collect':'paid_pay',
@@ -137,6 +159,7 @@ async function snapshotChanges(db,group,items) {
     // Detectar también anulación/eliminación, distinta de pago/saldo cancelado.
     if(snap.exists)for(const [key,prev] of Object.entries(before)){
       if(current[key])continue;
+      if(prev.kind==='presupuesto')continue;
       const cobro=prev.kind==='cobro';
       eventos.push({
         id:'eliminado:'+key+':'+sha(JSON.stringify(prev)),
@@ -167,7 +190,7 @@ export async function syncPush() {
     }
   }
   const day=plusDays(argDate(),2);
-  for(const item of Object.values(datasets).flat().filter(x=>!isPaid(x.status)&&x.due===day).slice(0,MAX_EVENTS)){
+  for(const item of Object.values(datasets).flat().filter(x=>x.kind!=='presupuesto'&&!isPaid(x.status)&&x.due===day).slice(0,MAX_EVENTS)){
     const cobro=item.kind==='cobro';
     const event={
       id:'vence:'+item.key+':'+day,
