@@ -43,12 +43,12 @@ export default function Movimientos({
         else borderClass += 'border-green-400 bg-white';
 
         return (
-            <div key={item.id} className={`p-4 rounded-lg shadow-sm flex flex-col gap-2 ${borderClass} mb-2 bg-white`}>
+            <div key={item.id} className={`p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col gap-3 ${borderClass} mb-3 bg-white`}>
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center w-full">
                     <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center flex-wrap gap-2">
                             <div className="text-gray-400">{getTypeIcon(item.subtype)}</div>
-                            <h3 className={`font-bold truncate text-gray-800`}>{item.payee}</h3>
+                            <h3 className={`font-extrabold text-sm sm:text-base text-slate-900 break-words whitespace-normal`}>{item.payee}</h3>
                             {isPaid && <span className="bg-emerald-200 text-emerald-800 text-[9px] px-1 rounded font-bold">PAGADO</span>}
                             {isPartial && <span className="bg-yellow-200 text-yellow-800 text-[9px] px-1 rounded font-bold">PARCIAL</span>}
                             {item.type === 'pay' && item.category !== 'others' && (
@@ -73,23 +73,23 @@ export default function Movimientos({
                     </div>
                     <div className="w-full sm:w-auto flex justify-between sm:justify-end items-center gap-4 pl-0 sm:pl-3 border-t sm:border-t-0 pt-2 sm:pt-0 mt-2 sm:mt-0">
                         <div className="text-right">
-                            <div className="font-bold text-gray-800">{formatMoney(item.amount)}</div>
+                            <div className="font-black text-lg sm:text-xl text-slate-900 tracking-tight tabular-nums break-all">{formatMoney(item.amount)}</div>
                             {(isPartial || (isPaid && item.paidAmount < item.amount)) && (
                                 <div className="text-[10px] text-red-500 font-bold">Resta: {formatMoney(item.amount - (item.paidAmount || 0))}</div>
                             )}
                         </div>
-                        <div className="flex gap-1">
+                        <div className="flex flex-wrap gap-1.5 justify-end">
                             {!isPaid && (
-                                <button onClick={() => markFullPayment(item)} className="text-gray-400 hover:text-green-600" title="Marcar Pagado">
+                                <button onClick={() => markFullPayment(item)} className="rounded-xl min-h-[36px] min-w-[36px] flex items-center justify-center bg-green-50 text-green-700 hover:bg-green-100" title="Marcar Pagado">
                                     <IconCheck className="w-4 h-4"/>
                                 </button>
                             )}
                             {!isPaid && item.status !== 'paid' && mode !== 'expenses' && (
-                                <button onClick={() => markPartialPayment(item)} className="text-gray-400 hover:text-yellow-600" title="Pago Parcial">
+                                <button onClick={() => markPartialPayment(item)} className="rounded-xl min-h-[36px] min-w-[36px] flex items-center justify-center bg-amber-50 text-amber-700 hover:bg-amber-100" title="Pago Parcial">
                                     $
                                 </button>
                             )}
-                            <button onClick={() => setHistoryModal({isOpen: true, item: item})} className="text-gray-400 hover:text-purple-600" title="Ver Historial de Pagos">
+                            <button onClick={() => setHistoryModal({isOpen: true, item: item})} className="rounded-xl min-h-[36px] min-w-[36px] flex items-center justify-center bg-violet-50 text-violet-700 hover:bg-violet-100" title="Ver Historial de Pagos">
                                 <IconEye className="w-4 h-4"/>
                             </button>
                             <button 
@@ -98,14 +98,14 @@ export default function Movimientos({
                                     const text = `Hola *${item.payee}*, aviso sobre ${action} (Ref: ${item.number || 'S/N'}) por *${formatMoney(item.amount)}* con fecha: ${new Date(item.dueDate+'T00:00:00').toLocaleDateString('es-AR')}. Saludos, SII PALLETS.`;
                                     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
                                 }} 
-                                className="text-gray-400 hover:text-green-500" title="Enviar WhatsApp"
+                                className="rounded-xl min-h-[36px] min-w-[36px] flex items-center justify-center bg-emerald-50 text-emerald-700 hover:bg-emerald-100" title="Enviar WhatsApp"
                             >
                                 <IconMessage className="w-4 h-4" />
                             </button>
-                            <button onClick={() => handleEdit(item)} className="text-gray-400 hover:text-blue-600" title="Editar">
+                            <button onClick={() => handleEdit(item)} className="rounded-xl min-h-[36px] min-w-[36px] flex items-center justify-center bg-blue-50 text-blue-700 hover:bg-blue-100" title="Editar">
                                 <IconPencil className="w-4 h-4"/>
                             </button>
-                            <button onClick={() => deleteItem(item)} className="text-gray-400 hover:text-red-600" title="Eliminar">
+                            <button onClick={() => deleteItem(item)} className="rounded-xl min-h-[36px] min-w-[36px] flex items-center justify-center bg-rose-50 text-rose-700 hover:bg-rose-100" title="Eliminar">
                                 <IconTrash className="w-4 h-4"/>
                             </button>
                         </div>
