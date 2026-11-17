@@ -26,3 +26,55 @@ input, select, textarea { font-size: 16px !important; }
 /* Calendario Styles */
 .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
 .calendar-day { min-height: 90px; font-size: 10px; position: relative; }
+
+
+/* SII PALLETS PRO — navegación móvil y ergonomía iPhone / Android */
+.sii-mobile-dock { position: fixed; inset: auto 0 0 0; z-index: 45; pointer-events: none; }
+.sii-mobile-tabs {
+  pointer-events: auto;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  background: rgba(255,255,255,.98);
+  border-top: 1px solid #e2e8f0;
+  box-shadow: 0 -8px 28px rgba(15,23,42,.10);
+  padding: 6px max(8px,env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+.sii-mobile-tab {
+  min-height: 52px;
+  border-radius: 14px;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 3px;
+  transition: background-color .15s ease, color .15s ease;
+  touch-action: manipulation;
+}
+.sii-mobile-tab-active { background: #eff6ff; color: #1d4ed8; }
+.sii-mobile-tab:focus-visible, .sii-mobile-more-item:focus-visible { outline: 3px solid #60a5fa; outline-offset: 2px; }
+.sii-mobile-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.35); z-index: -2; pointer-events: auto; }
+.sii-mobile-more {
+  pointer-events: auto;
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(75px + env(safe-area-inset-bottom));
+  background: white;
+  color: #0f172a;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  padding: 16px;
+  box-shadow: 0 16px 48px rgba(15,23,42,.22);
+  max-height: min(70dvh, 540px);
+  overflow-y: auto;
+}
+.sii-mobile-more-item { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 10px; min-height: 78px; padding: 12px; border-radius: 14px; border: 1px solid #e2e8f0; font-size: 12px; font-weight: 800; text-align: left; background: #f8fafc; touch-action: manipulation; }
+.sii-mobile-more-item-active { color: #1d4ed8; background: #eff6ff; border-color: #93c5fd; }
+@media (prefers-reduced-motion: reduce) {
+  .sii-mobile-tab, .animate-fade-in, .accordion-content { transition: none !important; animation: none !important; }
+}
