@@ -60,8 +60,8 @@ function primeraPagina(pdf,quote,logo) {
   t(pdf,'Compr. Nro.: '+quote.numero,111,37,8,{bold:true});
   t(pdf,'Fecha de Emisión: '+fechaAR(quote.fecha),111,43,8);
   t(pdf,'CUIT: '+EMISOR.cuit,111,51,8,{bold:true});
-  t(pdf,'Ingresos Brutos:',111,57,7.5);
-  t(pdf,'Fecha de Inicio de Actividades:  /  /',111,63,7.2);
+  t(pdf,'Ingresos Brutos: '+EMISOR.ingresosBrutos,111,57,7.5);
+  t(pdf,'Fecha de Inicio de Actividades: '+EMISOR.inicioActividades,111,63,7.2);
   pdf.line(8,91,202,91);
   t(pdf,'Sr(es): '+quote.cliente.razonSocial,10,79,8,{bold:true});
   t(pdf,'Domicilio: '+(quote.cliente.domicilio||'—'),111,79,7.4);
