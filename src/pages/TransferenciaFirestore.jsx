@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { verificarMigracionEnVivo } from '../utils/verificarMigracion';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import {
@@ -23,6 +24,7 @@ export default function TransferenciaFirestore({ rol, pagosDb, exportarOrigenes 
   const [confirmacion, setConfirmacion] = useState('');
   const [acepto, setAcepto] = useState(false);
   const [aceptoDescarga, setAceptoDescarga] = useState(false);
+  const [auditoria, setAuditoria] = useState(null);
 
   // Utiliza exactamente la autenticación anónima que ya tiene la aplicación;
   // nunca solicita una contraseña adicional ni cambia la sesión actual.
@@ -122,6 +124,25 @@ export default function TransferenciaFirestore({ rol, pagosDb, exportarOrigenes 
     }
   };
 
+  const verificarAhora = async () => {
+    setError('');
+    setAuditoria(null);
+    setOcupado(true);
+    try {
+      if (!sesion) throw new Error('Todavía no está lista la sesión de Firebase.');
+      const informe = await verificarMigracionEnVivo(db, exportarOrigenes, setEstado);
+      setAuditoria(informe);
+      setEstado(informe.identicos
+        ? 'Verificación terminada: los registros de las rutas conocidas coinciden en ambas bases.'
+        : 'La verificación detectó diferencias. Revisá los resultados antes de continuar.');
+    } catch (err) {
+      setError(err?.message || String(err));
+      setEstado('No se pudo completar la comparación en vivo.');
+    } finally {
+      setOcupado(false);
+    }
+  };
+
   return (
     <section className="max-w-5xl mx-auto space-y-5 text-slate-800">
       <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-5 sm:p-7 space-y-3">
@@ -164,6 +185,36 @@ export default function TransferenciaFirestore({ rol, pagosDb, exportarOrigenes 
           </div>}
         </div>
       ) : null}
+
+      {!esOrigen && typeof exportarOrigenes === 'function' && (
+        <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-5 sm:p-7 space-y-4">
+          <div className="flex flex-wrap gap-2 items-center justify-between">
+            <h3 className="text-lg font-black">Verificar migración contra las bases originales</h3>
+            <span className={badge}>SOLO LECTURA</span>
+          </div>
+          <p className="text-sm text-slate-600">Compara los datos actuales, documento por documento, de ControlCheque y Pagos Avanzados contra el nuevo Firebase. También encuentra registros adicionales en el destino. No escribe ni borra nada.</p>
+          <button type="button" disabled={ocupado || !sesion} onClick={verificarAhora}
+            className={boton + ' w-full sm:w-auto bg-indigo-700 text-white'}>
+            {ocupado ? 'Comparando datos...' : 'Verificar igualdad de ambas bases ahora'}
+          </button>
+          {auditoria && <div className={'rounded-xl border p-4 space-y-3 text-sm ' + (auditoria.identicos ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200')}>
+            <p className="text-base font-black">{auditoria.identicos ? 'Coinciden los documentos de las rutas verificadas' : 'Se encontraron diferencias entre las bases'}</p>
+            <p className="text-xs">Comprobado: {new Date(auditoria.comprobadoEn).toLocaleString('es-AR')}</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {[['Origen', auditoria.totalOrigen], ['Destino', auditoria.totalDestino], ['Idénticos', auditoria.iguales], ['Faltantes', auditoria.faltantes], ['Diferentes', auditoria.diferentes], ['Adicionales', auditoria.adicionales]].map(([titulo, valor]) =>
+                <div key={titulo} className="bg-white/70 p-3 rounded-xl"><span className="block text-xs text-slate-600">{titulo}</span><strong className="text-lg">{n(valor)}</strong></div>
+              )}
+            </div>
+            {auditoria.origenes.map(x => <p key={x.proyecto} className="text-xs">{x.proyecto}: {n(x.cantidad)} documentos</p>)}
+            {Object.entries(auditoria.ejemplos).filter(([, rutas]) => rutas.length).map(([tipo, rutas]) =>
+              <details key={tipo} className="bg-white/70 rounded-lg p-3"><summary className="font-bold">Ver {tipo} ({n(auditoria[tipo])})</summary>
+                <ul className="mt-2 list-disc pl-4 text-xs break-words">{rutas.map(ruta => <li key={ruta}>{ruta}</li>)}</ul>
+              </details>
+            )}
+            <p className="text-xs text-slate-600">{auditoria.alcance} Una igualdad de documentos no comprueba por sí sola que los saldos calculados o los permisos sean correctos.</p>
+          </div>}
+        </div>
+      )}
 
       {!esOrigen && (
         <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-5 sm:p-7 space-y-5">
