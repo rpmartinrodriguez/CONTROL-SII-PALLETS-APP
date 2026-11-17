@@ -12,9 +12,9 @@ export default async function handler(request){
     const {db}=firebaseAdmin();
     const devices=await db.collection('sii_push_devices').where('uid','==',uid).limit(15).get();
     if(!devices.docs.some(d=>d.data()?.enabled===true))return jsonResponse(403,{error:'Activá las notificaciones para consultar la bandeja.'});
-    const snapshot=await db.collection('sii_push_delivered').orderBy('createdAt','desc').limit(75).get();
+    const snapshot=await db.collection('sii_push_delivered').orderBy('createdAt','desc').limit(40).get();
     const cutoff=Date.now()-30*24*60*60*1000;
-    const items=snapshot.docs.map(doc=>{
+    const items=snapshot.docs.filter(d=>d.data()?.status==='sent' && (d.data()?.sent||0)>0).map(doc=>{
       const data=doc.data();
       const originalId=String(data.id||'');
       const m=originalId.match(/^(?:mov|vence|eliminado):(cobro|pago|pago_avanzado):([^:]+):/);
