@@ -24,6 +24,7 @@ const Facturacion = lazy(() => import('./pages/Facturacion'));
 const PresupuestosPDF = lazy(() => import('./pages/PresupuestosPDF'));
 const TransferenciaFirestore = lazy(() => import('./pages/TransferenciaFirestore'));
 import { conectarBasesOriginales } from './utils/conectarFirebaseOriginales';
+import { solicitarChequeoPush } from './utils/pushClient';
 
 
 export default function App() {
@@ -84,6 +85,17 @@ export default function App() {
 
     // Comunicación únicamente con la copia local de Pagos incluida en ESTA vista previa.
     // Los informes se generan a pedido; ningún movimiento de Firebase es modificado.
+    useEffect(() => {
+        const handler = event => {
+            if (event.origin !== window.location.origin ||
+                event.source !== pagosIframeRef.current?.contentWindow ||
+                event.data?.type !== 'SII_PAGOS_GUARDADOS_V1') return;
+            void solicitarChequeoPush();
+        };
+        window.addEventListener('message', handler);
+        return () => window.removeEventListener('message', handler);
+    }, []);
+
     useEffect(() => {
         const onExport = async event => {
             const message=event.data;
@@ -916,6 +928,8 @@ export default function App() {
         }
         setNewItem({ number: '', issueDate: '', dueDate: '', amount: '', payee: '', paidAmount: 0, subtype: 'cheque', category: 'others', status: 'pending', monthYear: '', cashType: 'income', bank: '', isRecurring: false, installments: 2 });
         setEditingId(null); setShowAddForm(false);
+        // Servidor comprueba cambios reales; no se envían datos financieros desde el cliente.
+        void solicitarChequeoPush();
     };
 
     const handleCashAddAction = async (e) => {
@@ -971,6 +985,7 @@ export default function App() {
         const newHistory = [...(item.paymentHistory || []), historyRecord];
         await updateDoc(doc(db, collectionName, 'main_list', 'items', item.id), { status: newStatus, paidAmount: currentPaid, paymentHistory: newHistory, paymentDetails: historyRecord });
         setPaymentModal({ isOpen: false, item: null, method: 'transfer', proof: '', type: 'total', amount: '' });
+        void solicitarChequeoPush();
     };
 
     const markFullPaymentAction = async (item) => { setPaymentModal({ isOpen: true, item: item, method: 'transfer', proof: '', type: 'total', amount: '' }); };
