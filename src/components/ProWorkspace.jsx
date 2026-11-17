@@ -1,4 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { getApp } from 'firebase/app';
+import { getMessaging, isSupported, onMessage } from 'firebase/messaging';
 import {
   IconBank, IconBell, IconBriefcase, IconBox, IconDownload, IconFileText,
   IconFolder, IconLayers, IconSearch, IconTrendingUp, IconWallet, IconX
@@ -22,6 +24,17 @@ const out = list => list.filter(item=>item.status !== 'paid');
 export default function ProWorkspace({mode,onNavigate,collectItems,payItems,pagosAvanzados,alerts,searchTerm,setSearchTerm}) {
   const [alertasAbiertas,setAlertasAbiertas] = useState(false);
   const [pushAbierto,setPushAbierto] = useState(false);
+  const [avisoEnPantalla,setAvisoEnPantalla] = useState(null);
+  useEffect(()=>{
+    let stop=()=>{},cancelado=false;
+    isSupported().then(habilitado=>{
+      if(!habilitado||cancelado)return;
+      stop=onMessage(getMessaging(getApp()),evento=>{
+        setAvisoEnPantalla({titulo:evento.data?.title||'SII PALLETS',detalle:evento.data?.body||'Nuevo aviso'});
+      });
+    }).catch(()=>{});
+    return ()=>{cancelado=true;stop();};
+  },[]);
   const seleccionado = modules.find(x=>x.id===mode)||modules[0];
   const resumen = useMemo(()=>{
     const cobros = out(collectItems);
@@ -69,6 +82,10 @@ export default function ProWorkspace({mode,onNavigate,collectItems,payItems,pago
         <button onClick={()=>setPushAbierto(v=>!v)} className="sii-pro-action">Notificaciones <span className="hidden sm:inline">push</span></button>
       </div>
     </div>
+    {avisoEnPantalla&&<div className="fixed z-[60] right-3 bottom-[calc(85px+env(safe-area-inset-bottom))] md:bottom-5 w-[min(370px,calc(100vw-24px))] rounded-2xl bg-slate-900 text-white p-4 shadow-2xl border border-blue-500" role="status">
+      <div className="flex justify-between items-start gap-2"><strong className="text-sm">{avisoEnPantalla.titulo}</strong><button type="button" aria-label="Cerrar aviso" onClick={()=>setAvisoEnPantalla(null)}>✕</button></div>
+      <p className="text-xs text-slate-200 mt-1 break-words">{avisoEnPantalla.detalle}</p>
+    </div>}
     {alertasAbiertas&&<div className="sii-pro-overlay-panel">
       <div className="flex justify-between items-center mb-3"><strong className="text-slate-900">Próximos vencimientos</strong><button aria-label="Cerrar alertas" onClick={()=>setAlertasAbiertas(false)}><IconX className="w-5 h-5"/></button></div>
       {alerts.length===0?<p className="text-slate-500 text-sm">No tenés alertas próximas.</p>:
