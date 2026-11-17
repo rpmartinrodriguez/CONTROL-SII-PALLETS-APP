@@ -1,4 +1,5 @@
 import React from 'react';
+import {createPortal} from 'react-dom';
 import {IconBell,IconEye,IconTrash,IconX} from './Icons';
 import {useBandejaSii} from '../hooks/useBandejaSii';
 
@@ -13,7 +14,7 @@ export default function CentroNotificaciones({onOpen}){
     onOpen?.(item);
   };
   const rows=(rows,compact=false)=>rows.length?(
-    <div className="space-y-2 max-h-[min(62dvh,580px)] overflow-y-auto overscroll-contain pr-1">
+    <div className={compact ? "space-y-2" : "space-y-2 max-h-[min(62dvh,580px)] overflow-y-auto overscroll-contain pr-1"}>
       {rows.map(item=><article key={item.id} className="rounded-2xl bg-white border border-slate-200 p-3 sm:p-4 shadow-sm">
         <div className="flex gap-3 items-start">
           <span className="mt-1 shrink-0 h-9 w-9 rounded-xl bg-blue-50 flex items-center justify-center text-blue-700"><IconBell className="w-4 h-4"/></span>
@@ -51,7 +52,7 @@ export default function CentroNotificaciones({onOpen}){
       <p className="text-[11px] text-slate-500 mt-3">El ojo abre la sección relacionada y marca como vista. La X de eliminar descarta el aviso de este dispositivo.</p>
     </div>}
 
-    {inbox.inicioAbierto && unread.length>0&&
+    {inbox.inicioAbierto && unread.length>0&&createPortal(
       <div className="fixed inset-0 z-[75] bg-slate-950/65 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
         <section role="dialog" aria-modal="true" aria-label="Notificaciones pendientes al ingresar"
           className="bg-slate-50 w-full max-w-xl max-h-[92dvh] overflow-hidden flex flex-col rounded-3xl shadow-2xl border border-slate-200">
@@ -73,6 +74,6 @@ export default function CentroNotificaciones({onOpen}){
             </button>
           </footer>
         </section>
-      </div>}
+      </div>, document.body)}
   </>;
 }
