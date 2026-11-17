@@ -14,7 +14,7 @@ async function registrarEnServidor(token, accion) {
   const response = await fetch('/.netlify/functions/push-register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + idToken },
-    body: JSON.stringify({ action: accion, token })
+    body: JSON.stringify({ action: accion, token, deviceName: navigator.userAgentData?.platform || navigator.platform || 'Equipo web', userAgent: navigator.userAgent })
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || 'No se pudo registrar el dispositivo.');
