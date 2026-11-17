@@ -21,5 +21,7 @@ jobs:
           node-version: '22'
       - name: Instalar dependencias
         run: npm install --no-audit --no-fund
+      - name: Revisar sintaxis de herramienta de respaldo Firestore
+        run: node --check migration/migrar.mjs
       - name: Pruebas y compilación
         run: npm run build
