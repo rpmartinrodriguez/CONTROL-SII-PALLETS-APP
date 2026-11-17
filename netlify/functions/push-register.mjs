@@ -1,4 +1,4 @@
-import { firebaseAdmin, verifyAuthorized, jsonResponse, sha } from '../lib/push-core.mjs';
+import { firebaseAdmin, verifyAuthorized, jsonResponse, sha, isQuotaExceeded } from '../lib/push-core.mjs';
 import { FieldValue } from 'firebase-admin/firestore';
 
 export default async function handler(request) {
@@ -19,8 +19,12 @@ export default async function handler(request) {
       return jsonResponse(200,{ok:true,registered:false});
     }
     const before=await ref.get();
-    // El token identifica esta instalación. Si se restauró la PWA pero Firebase
-    // generó otro UID anónimo, se reasocia automáticamente al UID actual.
+    // Si este token ya está registrado y habilitado, no gastamos una escritura
+    // en cada apertura del modal. El UID puede actualizarse si cambió la sesión.
+    if(before.exists && before.data()?.uid===uid &&
+       before.data()?.token===input.token && before.data()?.enabled===true){
+      return jsonResponse(200,{ok:true,registered:true,alreadyRegistered:true});
+    }
     const deviceName=String(input.deviceName||'Dispositivo web').slice(0,80);
     const userAgent=String(input.userAgent||'').slice(0,180);
     const record={
@@ -31,5 +35,14 @@ export default async function handler(request) {
     if(!before.exists)record.createdAt=FieldValue.serverTimestamp();
     await ref.set(record,{merge:true});
     return jsonResponse(200,{ok:true,registered:true,deviceName});
-  }catch(error){console.error('SII push-register:',error.message);return jsonResponse(403,{error:error.message||'Acceso no autorizado'});}
+  }catch(error){
+    console.error('SII push-register:',error.code||'',error.message||String(error));
+    if(isQuotaExceeded(error)){
+      return jsonResponse(429,{
+        error:'Firebase agotó temporalmente una cuota de operaciones. Este equipo todavía NO quedó registrado. Revisá Firestore → Uso y reintentá después de que se restablezca.',
+        code:'FIRESTORE_QUOTA'
+      });
+    }
+    return jsonResponse(403,{error:error?.message||'No se pudo registrar el equipo'});
+  }
 }
