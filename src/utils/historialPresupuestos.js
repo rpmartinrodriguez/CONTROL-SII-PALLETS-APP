@@ -25,7 +25,7 @@ export function proximoNumeroDisponible(historial=[],actual=502,local=502){
 }
 export function presupuestoCopia(original,nuevoNumero,nuevaFecha,crearId){
   return {
-    numero:nuevoNumero,fecha:nuevaFecha,cuenta:original.cuenta||'1',
+    numero:nuevoNumero,fecha:nuevaFecha,cuenta:original.cuenta||'1',nota:String(original.nota||'').slice(0,100),
     cliente:{razonSocial:'',cuit:'',domicilio:'',condicionIVA:'Responsable Inscripto',telefono:'',email:'',...original.cliente},
     items:(original.items||[]).map(item=>({
       id:crearId(),codigo:item.codigo||'',descripcion:item.descripcion||'',
