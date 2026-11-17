@@ -1,6 +1,7 @@
 import React, {useEffect,useMemo,useState,useRef} from 'react';
 import { addDoc, collection, doc, onSnapshot, runTransaction, serverTimestamp, updateDoc, deleteDoc } from 'firebase/firestore';
-import { db,auth } from '../firebase';
+import { db } from '../firebase';
+import { solicitarChequeoPush } from '../utils/pushClient';
 import { coincideCliente, normalizarBusqueda, ultimoPrecioCliente } from '../utils/clientesPresupuesto';
 import { agruparPresupuestosPorCliente, proximoNumeroDisponible, presupuestoCopia } from '../utils/historialPresupuestos';
 import { LOGO_PRESUPUESTO } from '../assets/logoPresupuesto';
@@ -314,11 +315,8 @@ export default function PresupuestosPDF() {
       if(!resultado)throw new Error('No se pudo asignar un número libre. Volvé a intentar.');
       // Se despierta el motor de avisos únicamente en una emisión nueva.
       // Si el servicio no está disponible, el presupuesto ya guardado no se revierte.
-      if(!existente && !editandoNumero && auth.currentUser){
-        void auth.currentUser.getIdToken().then(token=>fetch('/.netlify/functions/push-check',{
-          method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
-          body:'{}'
-        })).catch(err=>console.warn('Aviso de presupuesto pendiente de sincronizar:',err));
+      if(!existente && !editandoNumero){
+        solicitarChequeoPush();
       }
       setQuote(q=>({...q,numero:presupuesto.numero}));
       setGuardadoVersion(JSON.stringify(presupuesto));
