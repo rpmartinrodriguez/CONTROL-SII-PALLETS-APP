@@ -60,10 +60,10 @@ export default function PresupuestosPDF() {
   // El número sugerido procede del historial compartido, no del contador del equipo.
   // No se altera si el usuario decidió introducir manualmente otro número.
   useEffect(()=>{
-    if(!historialCargado || !numeroAutomatico || busy)return;
+    if(!historialCargado || !numeroAutomatico || busy || editandoNumero || guardadoVersion)return;
     const disponible=numeroCotizacion(proximoNumeroDisponible(historial,COTIZACION_INICIO,getSequence()));
     setQuote(q=>q.numero===disponible?q:{...q,numero:disponible});
-  },[historial,historialCargado,numeroAutomatico,busy]);
+  },[historial,historialCargado,numeroAutomatico,busy,editandoNumero,guardadoVersion]);
   const presupuestosCliente=useMemo(()=>{
     const nombre=normalizarBusqueda(quote.cliente.razonSocial);
     if(!nombre)return [];
@@ -76,6 +76,7 @@ export default function PresupuestosPDF() {
   const sugerirNumero=()=>numeroCotizacion(proximoNumeroDisponible(historial,
     Number(quote.numero?.split('-')[1])+1||COTIZACION_INICIO,getSequence()));
   const copiarGuardado=original=>{
+    if(envioEnCurso.current)return;
     const numero=sugerirNumero();
     const copia=presupuestoCopia(original,numero,fechaHoyLocal(),()=>ITEM_VACIO().id);
     if(!copia.items.length)copia.items=[ITEM_VACIO()];
@@ -155,6 +156,7 @@ export default function PresupuestosPDF() {
     });
   };
   const editarGuardado=p=>{
+    if(envioEnCurso.current)return;
     const editable={...p,cliente:{...initial().cliente,...p.cliente},items:(p.items||[]).map(i=>({...i,id:i.id||ITEM_VACIO().id})),nota:p.nota||''};
     if(!editable.items.length)editable.items=[ITEM_VACIO()];
     setEditandoNumero(p.numero);
@@ -169,7 +171,7 @@ export default function PresupuestosPDF() {
     envioEnCurso.current=true;setBusy('delete');setError('');
     try{
       await deleteDoc(doc(db,'historial_presupuestos_sii',p.numero));
-      if(editandoNumero===p.numero){setEditandoNumero('');setNumeroAutomatico(true);setQuote(initial());}
+      if(editandoNumero===p.numero){setEditandoNumero('');setGuardadoVersion('');setNumeroAutomatico(true);setQuote(initial());}
       setNotice('Presupuesto '+p.numero+' eliminado del historial.');
     }catch(err){setError('No se pudo borrar: '+err.message);}
     finally{envioEnCurso.current=false;setBusy('');}
@@ -204,6 +206,7 @@ export default function PresupuestosPDF() {
     }
   };
   const newQuote=()=>{
+    if(envioEnCurso.current)return;
     const n=proximoNumeroDisponible(historial,Number(quote.numero?.split('-')[1]) + 1 || COTIZACION_INICIO,getSequence());
     try {localStorage.setItem(SERIE_KEY,String(n));}catch{/* Storage opcional */}
     setClienteId('');setSugerencias(false);setPreciosParaRevisar([]);
@@ -260,6 +263,8 @@ export default function PresupuestosPDF() {
       if(!resultado)throw new Error('No se pudo asignar un número libre. Volvé a intentar.');
       setQuote(q=>({...q,numero:presupuesto.numero}));
       setGuardadoVersion(JSON.stringify(presupuesto));
+      setEditandoNumero(presupuesto.numero);
+      setNumeroAutomatico(false);
       const secuencia=Number(presupuesto.numero.split('-')[1])+1;
       if(Number.isSafeInteger(secuencia)&&secuencia>getSequence()){
         try{localStorage.setItem(SERIE_KEY,String(secuencia));}catch{/* almacenamiento opcional */}
