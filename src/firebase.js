@@ -4,7 +4,7 @@ import { getFirestore } from "firebase/firestore";
 
 // Proyecto Firebase personal de SII PALLETS (rama de migración).
 // Todavía no contiene los datos migrados: no publicar en main hasta conciliar el respaldo.
-const firebaseConfig = {
+export const firebaseConfig = {
     apiKey: "AIzaSyDaM97K6kU48_RNtLIk7YRBeRp8dghmpFk",
     authDomain: "sii-pallets-app.firebaseapp.com",
     projectId: "sii-pallets-app",
