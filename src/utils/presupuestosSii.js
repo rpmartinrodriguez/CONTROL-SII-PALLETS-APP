@@ -5,7 +5,7 @@ export const EMISOR = Object.freeze({
   domicilio: 'LUIS N PALMA 4227 (2820)',
   localidad: 'GUALEGUAYCHÚ',
   iva: 'IVA Responsable Inscripto',
-  cuit: '20257113543',
+  cuit: '20257115543',
   telefono: '3446-560271',
   ingresosBrutos: '20-25711554-3',
   inicioActividades: '01/09/2022',
