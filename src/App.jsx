@@ -1,5 +1,5 @@
 // Archivo: src/App.jsx
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { onAuthStateChanged, signInAnonymously } from "firebase/auth";
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, addDoc, setDoc } from "firebase/firestore";
 import { auth, db } from './firebase';
@@ -10,16 +10,18 @@ import {
     IconFolder, IconLayers, IconCheck, IconEye, IconPencil, IconTrash, IconMessage, IconBank, IconChevronLeft, IconChevronRight, IconX, IconFileText, IconCalendar
 } from './components/Icons';
 
-import Pallets from './pages/Pallets';
-import Caja from './pages/Caja';
-import Movimientos from './pages/Movimientos';
-import Balance from './pages/Balance';
+import NavegacionMovil from './components/NavegacionMovil';
 import { exportarExcelCategorias, exportarPdfCategorias } from './pages/ExportarCategoriasPagos';
 import { categoriasPagos } from './utils/balanceSemanal';
 import { usePagosReales } from './hooks/usePagosReales';
-import Facturacion from './pages/Facturacion';
-import PresupuestosPDF from './pages/PresupuestosPDF';
-import TransferenciaFirestore from './pages/TransferenciaFirestore';
+// Vistas pesadas: se descargan sólo al ingresar en el módulo.
+const Pallets = lazy(() => import('./pages/Pallets'));
+const Caja = lazy(() => import('./pages/Caja'));
+const Movimientos = lazy(() => import('./pages/Movimientos'));
+const Balance = lazy(() => import('./pages/Balance'));
+const Facturacion = lazy(() => import('./pages/Facturacion'));
+const PresupuestosPDF = lazy(() => import('./pages/PresupuestosPDF'));
+const TransferenciaFirestore = lazy(() => import('./pages/TransferenciaFirestore'));
 import { conectarBasesOriginales } from './utils/conectarFirebaseOriginales';
 
 
@@ -987,6 +989,8 @@ export default function App() {
         setPayTab('pendientes');
         setShowAddForm(false);
         setEditingId(null);
+        setShowNotifPanel(false);
+        if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'auto' });
     };
 
     // Abre el registro exacto desde el desglose de IVA, sin crear otra factura.
@@ -1006,8 +1010,8 @@ export default function App() {
 
     // EL TRUCO 100% PANTALLA COMPLETA: w-full min-h-screen sin límites
     return (
-        <div className={`w-full min-h-screen bg-gray-50 relative transition-colors duration-500 ${mode === 'pay' ? 'pb-0' : 'pb-24 lg:pb-8'}`}>
-            <div className={`${theme.bg} text-white p-4 md:p-6 sticky top-0 z-30 shadow-lg transition-colors duration-500`}>
+        <div className="w-full min-h-screen bg-slate-50 relative pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-8">
+            <div className={`${theme.bg} text-white px-3 py-3 sm:p-4 md:p-6 sticky top-0 z-30 shadow-lg transition-colors duration-300`}>
                 <div className="flex justify-between items-center mb-4">
                     <h1 className="text-xl font-bold flex items-center gap-2">SII PALLETS APP</h1>
                     <div className="flex gap-1 items-center">
@@ -1065,7 +1069,7 @@ export default function App() {
                     </div>
                 </div>
 
-                {mode !== 'pallets' && mode !== 'billing' && mode !== 'pay' && (
+                {(mode === 'collect' || mode === 'wallet' || mode === 'expenses') && (
                 <div className="mb-3 relative">
                     <input 
                         type="text" 
@@ -1078,12 +1082,12 @@ export default function App() {
                 </div>
                 )}
 
-                <div className="flex justify-end mb-2">
+                <div className="hidden md:flex justify-end mb-2">
                     <button onClick={() => changeMode('migration')} className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs sm:text-sm shadow-sm transition-all ${mode === 'migration' ? 'bg-white text-amber-900' : 'bg-amber-300 text-slate-900 hover:bg-amber-200'}`}>
                         <IconDownload className="w-4 h-4"/> MIGRACIÓN / RESPALDO
                     </button>
                 </div>
-                <div className="bg-black/20 p-1 rounded-xl flex text-[10px] sm:text-xs overflow-x-auto scrollbar-hide gap-1">
+                <div className="hidden md:flex bg-black/20 p-1 rounded-xl text-[10px] sm:text-xs overflow-x-auto scrollbar-hide gap-1">
                     <button onClick={() => changeMode('pay')} className={`flex-1 py-2 px-3 rounded-lg font-bold flex flex-col sm:flex-row items-center justify-center gap-1 transition-all whitespace-nowrap ${mode === 'pay' ? 'bg-white text-blue-800 shadow-md' : 'text-white/60'}`}><IconWallet className="w-4 h-4"/> <span>PAGOS</span></button>
                     <button onClick={() => changeMode('billing')} className={`flex-1 py-2 px-3 rounded-lg font-bold flex flex-col sm:flex-row items-center justify-center gap-1 transition-all whitespace-nowrap ${mode === 'billing' ? 'bg-white text-pink-800 shadow-md' : 'text-white/60'}`}><IconFileText className="w-4 h-4"/> <span>FACTURACIÓN</span></button>
                     <button onClick={() => changeMode('quotesPDF')} className={`flex-1 py-2 px-3 rounded-lg font-bold flex flex-col sm:flex-row items-center justify-center gap-1 transition-all whitespace-nowrap ${mode === 'quotesPDF' ? 'bg-white text-blue-800 shadow-md' : 'text-white/60'}`}><IconFileText className="w-4 h-4"/> <span>PRESUPUESTOS</span></button>
@@ -1099,9 +1103,10 @@ export default function App() {
             {/* Contenedor sin márgenes estrictos */}
             <div className={mode === 'pay' ? 'p-0 sm:p-2' : 'p-2 sm:p-4 md:p-6'}>
                 
+                <Suspense fallback={<div role="status" className="rounded-2xl border border-slate-200 bg-white p-6 text-sm font-semibold text-slate-600 shadow-sm">Cargando sección de SII PALLETS…</div>}>
                 {/* PORTAL A PANTALLA COMPLETA: APLICACIÓN AVANZADA DE PAGOS */}
                 {mode === 'pay' && (
-                    <div className="w-full h-[calc(100vh-140px)] bg-white sm:rounded-2xl shadow-xl overflow-hidden animate-fade-in border-0 sm:border border-gray-200">
+                    <div className="w-full h-[calc(100dvh-190px)] min-h-[320px] md:h-[calc(100vh-140px)] bg-white sm:rounded-2xl shadow-xl overflow-hidden animate-fade-in border-0 sm:border border-gray-200">
                         <iframe ref={pagosIframeRef} src="/pagos.html" title="Control de Pagos Avanzado — prueba de categorías" className="w-full h-full border-none outline-none bg-[#f8fafc]"></iframe>
                     </div>
                 )}
@@ -1183,7 +1188,9 @@ export default function App() {
                         deleteBank={deleteBankAction}
                     />
                 )}
+                </Suspense>
             </div>
+            <NavegacionMovil modo={mode} cambiarModo={changeMode}/>
 
             {/* MODALES GLOBALES */}
             {paymentModal.isOpen && (
