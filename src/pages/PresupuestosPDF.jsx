@@ -1,5 +1,5 @@
-import React, {useEffect,useMemo,useState} from 'react';
-import { addDoc, collection, doc, onSnapshot, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
+import React, {useEffect,useMemo,useState,useRef} from 'react';
+import { addDoc, collection, doc, onSnapshot, runTransaction, serverTimestamp, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { coincideCliente, normalizarBusqueda, ultimoPrecioCliente } from '../utils/clientesPresupuesto';
 import { agruparPresupuestosPorCliente, proximoNumeroDisponible, presupuestoCopia } from '../utils/historialPresupuestos';
@@ -20,7 +20,7 @@ const getSequence=()=>{
 const initial=()=>({
   numero:numeroCotizacion(getSequence()),fecha:fechaHoyLocal(),cuenta:'1',
   cliente:{razonSocial:'',cuit:'',domicilio:'',condicionIVA:'Responsable Inscripto',telefono:'',email:''},
-  items:[ITEM_VACIO()]
+  items:[ITEM_VACIO()],nota:''
 });
 const input='block w-full border border-slate-200 rounded-xl px-3 py-2.5 bg-white text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400';
 const label='block text-xs font-bold text-slate-600 mb-1';
@@ -28,6 +28,9 @@ const peso = n => pesosPDF(n);
 const userNotice='La numeración es automática y se consulta en la base compartida. Si otro equipo usa el número antes de guardar, se asigna el siguiente disponible.';
 export default function PresupuestosPDF() {
   const [quote,setQuote]=useState(initial);
+  const envioEnCurso=useRef(false);
+  const [editandoNumero,setEditandoNumero]=useState('');
+  const [guardadoVersion,setGuardadoVersion]=useState('');
   const [numeroAutomatico,setNumeroAutomatico]=useState(true);
   const [historialCargado,setHistorialCargado]=useState(false);
   const [busy,setBusy]=useState('');
@@ -61,6 +64,14 @@ export default function PresupuestosPDF() {
     const disponible=numeroCotizacion(proximoNumeroDisponible(historial,COTIZACION_INICIO,getSequence()));
     setQuote(q=>q.numero===disponible?q:{...q,numero:disponible});
   },[historial,historialCargado,numeroAutomatico,busy]);
+  const presupuestosCliente=useMemo(()=>{
+    const nombre=normalizarBusqueda(quote.cliente.razonSocial);
+    if(!nombre)return [];
+    return historial.filter(p=>(clienteId&&p.clienteId===clienteId)||
+      (quote.cliente.cuit&&p.cliente?.cuit&&normalizarBusqueda(p.cliente.cuit)===normalizarBusqueda(quote.cliente.cuit))||
+      normalizarBusqueda(p.cliente?.razonSocial)===nombre)
+      .sort((a,b)=>String(b.fecha||'').localeCompare(String(a.fecha||''))||String(b.numero||'').localeCompare(String(a.numero||'')));
+  },[historial,clienteId,quote.cliente.razonSocial,quote.cliente.cuit]);
   const gruposGuardados=useMemo(()=>agruparPresupuestosPorCliente(historial),[historial]);
   const sugerirNumero=()=>numeroCotizacion(proximoNumeroDisponible(historial,
     Number(quote.numero?.split('-')[1])+1||COTIZACION_INICIO,getSequence()));
@@ -69,6 +80,7 @@ export default function PresupuestosPDF() {
     const copia=presupuestoCopia(original,numero,fechaHoyLocal(),()=>ITEM_VACIO().id);
     if(!copia.items.length)copia.items=[ITEM_VACIO()];
     setNumeroAutomatico(true);
+    setEditandoNumero('');setGuardadoVersion('');
     setQuote(copia);
     setClienteId(original.clienteId||clientes.find(c=>
       normalizarBusqueda(c.razonSocial)===normalizarBusqueda(original.cliente?.razonSocial))?.id||'');
@@ -122,6 +134,7 @@ export default function PresupuestosPDF() {
   const guardarHistorial=async (presupuesto,total)=>{
     const referencia=doc(db,'historial_presupuestos_sii',presupuesto.numero);
     const original={
+      nota:String(presupuesto.nota||'').slice(0,100),
       numero:presupuesto.numero,fecha:presupuesto.fecha,cuenta:presupuesto.cuenta,
       clienteId:clienteId||null,cliente:{...presupuesto.cliente},
       items:presupuesto.items.map(({id,codigo,descripcion,cantidad,bultos,precioUnitario})=>({id,codigo,descripcion,cantidad,bultos,precioUnitario})),
@@ -131,7 +144,9 @@ export default function PresupuestosPDF() {
       const previo=await transaccion.get(referencia);
       if(previo.exists()){
         const anterior=previo.data();
-        if(JSON.stringify({...anterior,guardadoEn:undefined})!==JSON.stringify({...original,guardadoEn:undefined})){
+        if(editandoNumero===presupuesto.numero){
+          transaccion.update(referencia,{...original,actualizadoEn:serverTimestamp()});
+        }else if(JSON.stringify({...anterior,guardadoEn:undefined,actualizadoEn:undefined,nota:anterior.nota||''})!==JSON.stringify({...original,guardadoEn:undefined,actualizadoEn:undefined})){
           const error=new Error('Número de presupuesto ocupado');
           error.code='PRESUPUESTO_OCUPADO';
           throw error;
@@ -139,6 +154,41 @@ export default function PresupuestosPDF() {
       }else transaccion.set(referencia,{...original,guardadoEn:serverTimestamp()});
     });
   };
+  const editarGuardado=p=>{
+    const editable={...p,cliente:{...initial().cliente,...p.cliente},items:(p.items||[]).map(i=>({...i,id:i.id||ITEM_VACIO().id})),nota:p.nota||''};
+    if(!editable.items.length)editable.items=[ITEM_VACIO()];
+    setEditandoNumero(p.numero);
+    setNumeroAutomatico(false);setGuardadoVersion('');
+    setQuote(editable);setClienteId(p.clienteId||'');
+    setPreciosParaRevisar([]);setError('');setNotice('Editando '+p.numero+'. La próxima emisión actualizará este mismo presupuesto.');
+    requestAnimationFrame(()=>document.getElementById('sii-presupuesto-editor')?.scrollIntoView({behavior:'smooth',block:'start'}));
+  };
+  const borrarGuardado=async p=>{
+    if(envioEnCurso.current)return;
+    if(!window.confirm('¿Eliminar el presupuesto '+p.numero+' de '+(p.cliente?.razonSocial||'este cliente')+'? Esta acción no se puede deshacer.'))return;
+    envioEnCurso.current=true;setBusy('delete');setError('');
+    try{
+      await deleteDoc(doc(db,'historial_presupuestos_sii',p.numero));
+      if(editandoNumero===p.numero){setEditandoNumero('');setNumeroAutomatico(true);setQuote(initial());}
+      setNotice('Presupuesto '+p.numero+' eliminado del historial.');
+    }catch(err){setError('No se pudo borrar: '+err.message);}
+    finally{envioEnCurso.current=false;setBusy('');}
+  };
+  const resumenCliente=lista=>lista.length>0&&<div className="space-y-2">
+    {lista.map(p=><div key={p.numero} className="rounded-xl border border-slate-200 bg-white p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="min-w-0">
+        <strong className="text-sm text-slate-900">{p.numero}</strong>
+        <p className="text-xs text-slate-500">{fechaAR(p.fecha)} · {p.cuenta==='2'?'Cuenta 2':'Cuenta 1'} · {peso(Number(p.totalCentavos)||0)}</p>
+        <div className="flex flex-wrap gap-1 mt-2">{(p.items||[]).map((i,j)=><span key={i.id||j} className="text-xs text-blue-900 bg-blue-50 rounded-md px-2 py-1">{i.cantidad} × {i.descripcion||'Artículo'}</span>)}</div>
+        {p.nota&&<p className="text-xs text-slate-500 mt-1">Nota: {p.nota}</p>}
+      </div>
+      <div className="flex flex-wrap gap-2 shrink-0">
+        <button type="button" disabled={!!busy} onClick={()=>copiarGuardado(p)} className="px-3 py-2 rounded-lg bg-blue-700 text-white text-xs font-bold">Copiar</button>
+        <button type="button" disabled={!!busy} onClick={()=>editarGuardado(p)} className="px-3 py-2 rounded-lg bg-slate-800 text-white text-xs font-bold">Editar</button>
+        <button type="button" disabled={!!busy} onClick={()=>borrarGuardado(p)} className="px-3 py-2 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold">Borrar</button>
+      </div>
+    </div>)}
+  </div>;
   const updateLine=(id,key,value)=>{
     if(key==='precioUnitario')setPreciosParaRevisar(old=>old.filter(x=>x!==id));
     setQuote(q=>({...q,items:q.items.map(i=>i.id===id?{...i,[key]:value}:i)}));
@@ -157,17 +207,41 @@ export default function PresupuestosPDF() {
     const n=proximoNumeroDisponible(historial,Number(quote.numero?.split('-')[1]) + 1 || COTIZACION_INICIO,getSequence());
     try {localStorage.setItem(SERIE_KEY,String(n));}catch{/* Storage opcional */}
     setClienteId('');setSugerencias(false);setPreciosParaRevisar([]);
-    setNumeroAutomatico(true);
+    setNumeroAutomatico(true);setEditandoNumero('');setGuardadoVersion('');
     setQuote({...initial(),numero:numeroCotizacion(n)});
     setError('');setNotice('Nuevo presupuesto listo.');
   };
   const run=async(action)=>{
-    if(busy)return;
+    if(envioEnCurso.current)return;
+    envioEnCurso.current=true;
     setError('');setNotice('');
     setBusy(action);
     try {
       validarPresupuesto(quote);
+      if(String(quote.nota||'').length>100)throw Error('La nota admite como máximo 100 caracteres.');
       let presupuesto={...quote};
+      const fingerprint=JSON.stringify(presupuesto);
+      // Reemitir el mismo contenido no crea un nuevo documento: se reutiliza el existente.
+      const existente=historial.find(p=>p.numero===presupuesto.numero);
+      const mismoContenido=existente&&JSON.stringify({
+        fecha:existente.fecha,cuenta:existente.cuenta,cliente:existente.cliente,
+        items:existente.items,nota:existente.nota||''
+      })===JSON.stringify({
+        fecha:presupuesto.fecha,cuenta:presupuesto.cuenta,cliente:presupuesto.cliente,
+        items:presupuesto.items,nota:presupuesto.nota||''
+      });
+      if(guardadoVersion===fingerprint||mismoContenido) {
+        const pdf=await generarPdfPresupuesto(presupuesto);
+        if(action==='download'){descargarPdf(pdf.blob,pdf.filename);setNotice('PDF descargado nuevamente, sin duplicar el presupuesto.');}
+        else if(navigator.share){
+          const file=new File([pdf.blob],pdf.filename,{type:'application/pdf'});
+          if(!navigator.canShare||navigator.canShare({files:[file]})){
+            try{await navigator.share({title:'Presupuesto SII PALLETS',files:[file]});}
+            catch(err){if(err?.name!=='AbortError')throw err;}
+          }else descargarPdf(pdf.blob,pdf.filename);
+        }else descargarPdf(pdf.blob,pdf.filename);
+        return;
+      }
       let resultado;
       // Transacción por número de documento: protege también ante dos equipos
       // que emiten en el mismo instante. Reintenta ante conflictos de numeración.
@@ -178,13 +252,14 @@ export default function PresupuestosPDF() {
           resultado=await generarPdfPresupuesto(presupuesto);
           break;
         }catch(err){
-          if(err.code!=='PRESUPUESTO_OCUPADO'||!numeroAutomatico)throw err;
+          if(err.code!=='PRESUPUESTO_OCUPADO'||!numeroAutomatico||editandoNumero)throw err;
           const siguiente=proximoNumeroDisponible(historial,Number(presupuesto.numero.split('-')[1])+1,getSequence());
           presupuesto={...presupuesto,numero:numeroCotizacion(siguiente)};
         }
       }
       if(!resultado)throw new Error('No se pudo asignar un número libre. Volvé a intentar.');
       setQuote(q=>({...q,numero:presupuesto.numero}));
+      setGuardadoVersion(JSON.stringify(presupuesto));
       const secuencia=Number(presupuesto.numero.split('-')[1])+1;
       if(Number.isSafeInteger(secuencia)&&secuencia>getSequence()){
         try{localStorage.setItem(SERIE_KEY,String(secuencia));}catch{/* almacenamiento opcional */}
@@ -209,7 +284,7 @@ export default function PresupuestosPDF() {
         }
       }
     }catch(err){setError(err?.message||'No se pudo generar el presupuesto.');}
-    finally{setBusy('');}
+    finally{envioEnCurso.current=false;setBusy('');}
   };
 
   return <div className="animate-fade-in mx-auto max-w-[1700px] space-y-4">
@@ -256,8 +331,7 @@ export default function PresupuestosPDF() {
                 </div>
                 <strong className="block text-sm text-blue-800 mt-2">{peso(Number(p.totalCentavos)||0)}</strong>
               </div>
-              <button type="button" onClick={()=>copiarGuardado(p)}
-                className="sii-pro-button-primary w-full sm:w-auto shrink-0">Copiar presupuesto</button>
+              <div className="flex flex-wrap gap-2 shrink-0"><button type="button" disabled={!!busy} onClick={()=>copiarGuardado(p)} className="sii-pro-button-primary">Copiar</button><button type="button" disabled={!!busy} onClick={()=>editarGuardado(p)} className="sii-pro-button-secondary">Editar</button><button type="button" disabled={!!busy} onClick={()=>borrarGuardado(p)} className="rounded-xl px-3 py-2 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">Borrar</button></div>
             </div>)}
           </div>}
         </div>)}
@@ -319,6 +393,7 @@ export default function PresupuestosPDF() {
             <label><span className={label}>Teléfono (opcional)</span><input className={input} inputMode="tel" value={quote.cliente.telefono} onChange={e=>setCustomer('telefono',e.target.value)}/></label>
             <label><span className={label}>Correo (opcional)</span><input className={input} type="email" value={quote.cliente.email} onChange={e=>setCustomer('email',e.target.value)} placeholder="cliente@empresa.com"/></label>
           </div>
+          {presupuestosCliente.length>0&&<div className="rounded-xl border border-blue-200 bg-blue-50/50 p-3 space-y-2"><strong className="text-sm text-blue-900">Presupuestos anteriores ({presupuestosCliente.length})</strong>{resumenCliente(presupuestosCliente)}</div>}
           <button type="button" disabled={guardandoCliente} onClick={guardarCliente}
             className="rounded-xl bg-blue-700 hover:bg-blue-800 text-white px-4 py-3 text-sm font-bold disabled:opacity-50">
             {guardandoCliente?'Guardando…':clienteId?'Actualizar ficha del cliente':'Guardar cliente en la base'}
@@ -357,6 +432,11 @@ export default function PresupuestosPDF() {
               <div className="text-right text-sm font-bold text-slate-800">Subtotal: {totals.data?.lineas.find(x=>x.id===row.id) ? peso(totals.data.lineas.find(x=>x.id===row.id).subtotalCentavos) : '—'}</div>
             </div>)}
           </div>
+          <label className="block border-t border-slate-100 pt-3"><span className={label}>Nota del presupuesto (opcional)</span>
+            <textarea className={input} maxLength={100} rows={2} placeholder="Observación para incluir en el presupuesto" value={quote.nota||''} onChange={e=>setQuote(q=>({...q,nota:e.target.value.slice(0,100)}))}/>
+            <span className="text-xs text-slate-500">{(quote.nota||'').length}/100 caracteres</span>
+          </label>
+          {presupuestosCliente.length>0&&<div className="rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-2"><strong className="text-sm text-slate-900">Presupuestos anteriores de este cliente</strong>{resumenCliente(presupuestosCliente)}</div>}
         </div>
         <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm">
           <div className="flex justify-between gap-3 text-sm mb-2"><span>Subtotal</span><strong>{totals.data?peso(totals.data.subtotalCentavos):'—'}</strong></div>
@@ -377,8 +457,8 @@ export default function PresupuestosPDF() {
           <h3 className="font-bold text-slate-800">Vista previa del presupuesto</h3>
           <button type="button" onClick={()=>setShowPreview(v=>!v)} className="text-xs font-bold text-blue-800">{showPreview?'Ocultar':'Mostrar'}</button>
         </div>
-        {showPreview&&<div className="overflow-x-auto p-3 bg-slate-100">
-          <div className="bg-white mx-auto shadow-sm border border-slate-600 text-slate-800" style={{minWidth:650,maxWidth:790,aspectRatio:'210 / 297'}}>
+        {showPreview&&<div className="overflow-x-auto p-2 bg-slate-100">
+          <div className="bg-white mx-auto shadow-sm border border-slate-600 text-slate-800" style={{width:'100%',maxWidth:530,aspectRatio:'210 / 297'}}>
             <div className="text-center border-b border-slate-700 font-bold text-[10px] py-1">ORIGINAL</div>
             <div className="grid grid-cols-2 border-b border-slate-700">
               <div className="border-r border-slate-700 p-2">
@@ -423,6 +503,7 @@ export default function PresupuestosPDF() {
               </tr>)}</tbody>
             </table>
             <div className="mt-auto"/>
+            {quote.nota&&<p className="px-3 pt-3 text-[10px] break-words"><strong>Nota:</strong> {quote.nota}</p>}
             <div className="p-3 text-[11px] mt-12 border-t border-slate-500">
               <div className="flex justify-between"><span>SUBTOTAL</span><strong>{totals.data?peso(totals.data.subtotalCentavos):'—'}</strong></div>
               {quote.cuenta==='1'&&<div className="flex justify-between mt-1"><span>IVA 21 %</span><strong>{totals.data?peso(totals.data.ivaCentavos):'—'}</strong></div>}
