@@ -17,7 +17,7 @@ export default async function handler(request){
     const items=snapshot.docs.filter(d=>d.data()?.status==='sent' && (d.data()?.sent||0)>0).map(doc=>{
       const data=doc.data();
       const originalId=String(data.id||'');
-      const m=originalId.match(/^(?:mov|vence|eliminado):(cobro|pago|pago_avanzado):([^:]+):/);
+      const m=originalId.match(/^(?:mov|vence|eliminado):(cobro|pago|pago_avanzado|presupuesto):([^:]+):/);
       return {
         id:doc.id,
         titulo:String(data.title||'Aviso de SII PALLETS').slice(0,120),
