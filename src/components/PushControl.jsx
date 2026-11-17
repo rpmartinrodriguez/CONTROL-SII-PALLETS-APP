@@ -7,6 +7,11 @@ import { esperarServiceWorkerActivo } from '../utils/pushServiceWorker';
 
 const VAPID_PUBLICA = import.meta.env.VITE_SII_FCM_VAPID_PUBLIC || '';
 const OPT_IN = 'sii_pallets_push_opt_in_v2';
+const CONFIRMADO_EN = 'sii_pallets_push_confirmado_en_v1';
+const CACHE_MS = 12 * 60 * 60 * 1000;
+const mensajeError = error => /resource.exhausted|quota exceeded|firestore_quota/i.test(String(error?.message||''))
+  ? 'Firebase agotó su cuota temporal de operaciones. Este equipo todavía no quedó registrado. Revisá Firestore → Uso y reintentá después del restablecimiento de cuota.'
+  : String(error?.message||error);
 
 async function tokenDeEsteEquipo() {
   if (!VAPID_PUBLICA) throw new Error('Falta configurar la clave pública VAPID en Netlify.');
@@ -42,7 +47,11 @@ async function llamarPush(path, payload) {
     body: JSON.stringify(payload)
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || 'Error en el servicio de notificaciones.');
+  if (!response.ok) {
+    const error = new Error(data.error || 'Error en el servicio de notificaciones.');
+    error.code = data.code || String(response.status);
+    throw error;
+  }
   return data;
 }
 
@@ -66,14 +75,27 @@ export default function PushControl({ cerrar }) {
   useEffect(() => {
     if (!sesion || typeof Notification === 'undefined') return undefined;
     if (localStorage.getItem(OPT_IN) !== 'yes' || Notification.permission !== 'granted') return undefined;
+    // Evitar una lectura/escritura en Firestore cada vez que se abre el modal.
+    // El estado se guarda SOLO después de un registro exitoso del servidor.
+    const confirmado = Number(localStorage.getItem(CONFIRMADO_EN)||0);
+    if (confirmado > 0 && Date.now()-confirmado < CACHE_MS) {
+      setActivado(true);
+      return undefined;
+    }
     let cancelado = false;
     (async () => {
       try {
         const token = await tokenDeEsteEquipo();
         await registrar(token);
-        if (!cancelado) setActivado(true);
+        if (!cancelado) {
+          localStorage.setItem(CONFIRMADO_EN,String(Date.now()));
+          setActivado(true);
+        }
       } catch (err) {
-        if (!cancelado) setError(err?.message || String(err));
+        if (!cancelado) {
+          setActivado(false);
+          setError(mensajeError(err));
+        }
       }
     })();
     return () => { cancelado = true; };
@@ -96,10 +118,11 @@ export default function PushControl({ cerrar }) {
       const token = await tokenDeEsteEquipo();
       await registrar(token);
       localStorage.setItem(OPT_IN, 'yes');
+      localStorage.setItem(CONFIRMADO_EN, String(Date.now()));
       setActivado(true);
       setEstado('Notificaciones activadas.');
     } catch (err) {
-      setError(err?.message || String(err));
+      setError(mensajeError(err));
     } finally {
       setOcupado(false);
     }
