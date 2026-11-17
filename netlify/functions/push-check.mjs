@@ -1,4 +1,4 @@
-import { verifyAuthorized, jsonResponse, syncPush } from './_push-core.mjs';
+import { verifyAuthorized, jsonResponse, syncPush } from '../lib/push-core.mjs';
 
 export default async function handler(request) {
   if(request.method!=='POST')return jsonResponse(405,{error:'Método no permitido'});
