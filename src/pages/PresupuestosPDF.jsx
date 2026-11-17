@@ -176,6 +176,35 @@ export default function PresupuestosPDF() {
     }catch(err){setError('No se pudo borrar: '+err.message);}
     finally{envioEnCurso.current=false;setBusy('');}
   };
+  const reimprimirGuardado=async p=>{
+    if(envioEnCurso.current)return;
+    // Abrir la vista antes de la tarea asíncrona evita bloqueos de ventanas
+    // emergentes en navegadores. No escribe en Firestore ni emite otro número.
+    const ventana=window.open('','_blank');
+    envioEnCurso.current=true;setBusy('reprint');setError('');setNotice('');
+    try{
+      const presupuesto={
+        ...p,numero:p.numero,nota:p.nota||'',
+        cliente:{...initial().cliente,...p.cliente},
+        items:(p.items||[]).map(item=>({...item,id:item.id||ITEM_VACIO().id}))
+      };
+      const {blob,filename}=await generarPdfPresupuesto(presupuesto);
+      const url=URL.createObjectURL(blob);
+      if(ventana&&!ventana.closed){
+        ventana.location.href=url;
+        ventana.focus();
+        setNotice('Se abrió el PDF original '+p.numero+' para reimprimir, sin crear otro presupuesto.');
+      }else{
+        descargarPdf(blob,filename);
+        setNotice('El navegador bloqueó la vista de impresión. Se descargó el PDF original '+p.numero+'.');
+      }
+      // Los lectores PDF pueden continuar usando la URL mientras la ventana esté abierta.
+      setTimeout(()=>URL.revokeObjectURL(url),10*60*1000);
+    }catch(err){
+      if(ventana&&!ventana.closed)ventana.close();
+      setError('No se pudo reimprimir '+p.numero+': '+(err?.message||String(err)));
+    }finally{envioEnCurso.current=false;setBusy('');}
+  };
   const resumenCliente=lista=>lista.length>0&&<div className="space-y-2">
     {lista.map(p=><div key={p.numero} className="rounded-xl border border-slate-200 bg-white p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div className="min-w-0">
@@ -186,6 +215,7 @@ export default function PresupuestosPDF() {
       </div>
       <div className="flex flex-wrap gap-2 shrink-0">
         <button type="button" disabled={!!busy} onClick={()=>copiarGuardado(p)} className="px-3 py-2 rounded-lg bg-blue-700 text-white text-xs font-bold">Copiar</button>
+        <button type="button" disabled={!!busy} onClick={()=>reimprimirGuardado(p)} className="px-3 py-2 rounded-lg bg-emerald-700 text-white text-xs font-bold">Reimprimir</button>
         <button type="button" disabled={!!busy} onClick={()=>editarGuardado(p)} className="px-3 py-2 rounded-lg bg-slate-800 text-white text-xs font-bold">Editar</button>
         <button type="button" disabled={!!busy} onClick={()=>borrarGuardado(p)} className="px-3 py-2 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold">Borrar</button>
       </div>
@@ -344,7 +374,7 @@ export default function PresupuestosPDF() {
                 </div>
                 <strong className="block text-sm text-blue-800 mt-2">{peso(Number(p.totalCentavos)||0)}</strong>
               </div>
-              <div className="flex flex-wrap gap-2 shrink-0"><button type="button" disabled={!!busy} onClick={()=>copiarGuardado(p)} className="sii-pro-button-primary">Copiar</button><button type="button" disabled={!!busy} onClick={()=>editarGuardado(p)} className="sii-pro-button-secondary">Editar</button><button type="button" disabled={!!busy} onClick={()=>borrarGuardado(p)} className="rounded-xl px-3 py-2 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">Borrar</button></div>
+              <div className="flex flex-wrap gap-2 shrink-0"><button type="button" disabled={!!busy} onClick={()=>copiarGuardado(p)} className="sii-pro-button-primary">Copiar</button><button type="button" disabled={!!busy} onClick={()=>reimprimirGuardado(p)} className="sii-pro-button-secondary">Reimprimir</button><button type="button" disabled={!!busy} onClick={()=>editarGuardado(p)} className="sii-pro-button-secondary">Editar</button><button type="button" disabled={!!busy} onClick={()=>borrarGuardado(p)} className="rounded-xl px-3 py-2 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">Borrar</button></div>
             </div>)}
           </div>}
         </div>)}
