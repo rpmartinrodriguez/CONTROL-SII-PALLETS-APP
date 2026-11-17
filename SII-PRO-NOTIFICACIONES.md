@@ -50,9 +50,11 @@ En la vista previa se debe trabajar con datos de prueba o en un entorno restring
 1. Abrir la app desde un equipo autorizado. Tocar Activar notificaciones.
 2. Revisar que aparezca **Push activo en este equipo**. En Firebase, confirmar un documento nuevo en `sii_push_devices`.
 3. Entrar desde otro equipo autorizado y repetir. Deben aparecer dos documentos (tokens) diferentes.
-4. Tocar **Revisar movimientos y avisos** para inicializar la referencia. Esto no crea un evento falso ni garantiza un push inmediato.
-5. Realizar un movimiento controlado, verificar llegada de avisos y dejar el entorno sin datos de prueba. No generar cobros reales ficticios.
-6. Al desactivar, confirmar que ese token desaparezca del listado.
+4. El modal ahora tiene únicamente **Activar notificaciones** y **Probar push**. Cuando la activación del Service Worker y el registro de Firebase terminen, muestra **✓ Notificaciones activadas**.
+5. Pulsar **Probar push**: una función segura de Netlify envía una notificación FCM real, exclusivamente al token de ese dispositivo. Con la app abierta, el aviso aparece dentro de la interfaz; en segundo plano lo recibe el Service Worker.
+6. Si aparece "Subscription failed - no active Service Worker", verificar que la versión de prueba actual esté desplegada y volver a abrir la app. La versión corregida espera a que el Service Worker específico de Firebase esté activo antes de pedir el token y muestra un error claro si no se activa.
+7. Realizar un movimiento controlado solo en un entorno autorizado de pruebas; comprobar llegada de avisos sin crear cobros ficticios en producción.
+8. La desactivación desde el dispositivo se gestiona mediante los permisos del sistema/navegador; el modal simplificado no incluye un control de baja del servidor. Para revocar un equipo debe desactivarse su documento en `sii_push_devices` desde un administrador autorizado.
 
 ## Automatización de avisos y advertencias
 
