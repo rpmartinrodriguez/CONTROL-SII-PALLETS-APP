@@ -876,7 +876,12 @@
 
         async function persistCheques() {
             loader.style.display = 'block';
-            try { await setDoc(doc(db, "finanzas", "cheques"), { data: cheques }); }
+            try {
+                await setDoc(doc(db, "finanzas", "cheques"), { data: cheques });
+                // La app contenedora comprueba los cambios desde el servidor Netlify.
+                // No se envían importes ni nombres por postMessage.
+                if (window.parent !== window) window.parent.postMessage({type:'SII_PAGOS_GUARDADOS_V1'}, window.location.origin);
+            }
             catch(err) { console.error("Error guardando cheques:", err); }
             setTimeout(() => loader.style.display = 'none', 500);
         }
