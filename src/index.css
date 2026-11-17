@@ -166,3 +166,104 @@ button:focus-visible, a:focus-visible { outline: 3px solid #60a5fa; outline-offs
 /* Prioridad explícita sobre utilidades Tailwind: sidebar jamás cubre el móvil. */
 .sii-pro-sidebar { display:none; }
 @media (min-width:768px) { .sii-pro-sidebar { display:flex; } }
+
+
+/* SII PRO — Finanzas claras y controles táctiles */
+.sii-finance-board { display:grid; gap:11px; margin-top:22px; position:relative; }
+.sii-finance-collect,.sii-finance-small {
+  min-width:0; display:flex; flex-direction:column; align-items:flex-start; text-align:left;
+  border-radius:18px; border:1px solid rgba(255,255,255,.2); padding:18px 20px;
+  background:rgba(255,255,255,.105);
+  transition:background .16s,transform .16s,border-color .16s;
+}
+.sii-finance-collect { background:rgba(255,255,255,.15); padding:20px 24px; }
+button.sii-finance-collect:hover,button.sii-finance-small:hover {
+  background:rgba(255,255,255,.21); border-color:rgba(255,255,255,.45); transform:translateY(-1px);
+}
+.sii-finance-secondary { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:11px; }
+.sii-finance-label { display:flex; gap:10px; align-items:center; font-size:11px; font-weight:800; color:#b6d6fd; letter-spacing:.09em; }
+.sii-finance-label span { font-size:20px; line-height:1; }
+.sii-finance-primary-value { font-size:clamp(28px,5vw,50px); font-weight:900; letter-spacing:-.055em; line-height:1.15; margin:11px 0; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; max-width:100%; }
+.sii-finance-value { font-size:clamp(20px,2.6vw,32px); font-weight:900; letter-spacing:-.04em; line-height:1.2; margin:10px 0; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; max-width:100%; }
+.sii-finance-positive { color:#85f1bf; }
+.sii-finance-negative { color:#ffb4be; }
+.sii-finance-sub { color:#c3d9f3; font-size:11px; font-weight:500; }
+.sii-finance-footnote { font-size:10px; color:#aac9ed; padding:0 3px; line-height:1.5; }
+.sii-amount-value { font-size:clamp(19px,4.4vw,26px); line-height:1.25; overflow-wrap:anywhere; }
+.sii-total-amount { font-size:clamp(21px,4.8vw,32px); line-height:1.2; overflow-wrap:anywhere; }
+.sii-pro-action-btn {
+  min-width:44px; min-height:44px; border:1px solid rgba(148,163,184,.16);
+  box-shadow:0 2px 9px rgba(15,23,42,.045);
+  transition:transform .13s ease,box-shadow .13s ease,background .13s ease;
+  -webkit-tap-highlight-color:transparent;
+}
+.sii-pro-action-btn:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(15,23,42,.09);}
+.sii-pro-action-btn:active{transform:scale(.96);}
+.sii-pro-button-primary,.sii-pro-button-secondary {
+  min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:9px;
+  border-radius:14px;padding:11px 17px;font-weight:800;font-size:13px;text-align:center;
+  border:1px solid transparent; box-shadow:0 3px 12px rgba(16,69,152,.1);
+  transition:background .15s,transform .15s,box-shadow .15s;
+}
+.sii-pro-button-primary { background:linear-gradient(120deg,#1455b6,#287dce);color:white; }
+.sii-pro-button-primary:hover { background:linear-gradient(120deg,#114996,#1e6aaf);transform:translateY(-1px); }
+.sii-pro-button-secondary { color:#164684; background:#fff; border-color:#c6d7ee; }
+.sii-pro-button-secondary:hover { background:#eff6ff; border-color:#86b7ed;transform:translateY(-1px); }
+.sii-pro-close { height:42px;width:42px; display:flex;align-items:center;justify-content:center; background:#f1f5f9;color:#334155;border-radius:12px; }
+.sii-pro-close:hover { background:#e2e8f0; }
+.sii-notif-btn {display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:38px;border-radius:11px;padding:8px 12px;font-weight:800;font-size:12px;}
+.sii-notif-view {background:#dbeafe;color:#1d4ed8;}
+.sii-notif-delete {background:#fff1f2;color:#be123c;}
+.sii-notif-btn:hover {filter:brightness(.97);}
+.sii-inbox-panel {max-height:min(78dvh,720px);overflow-y:auto;}
+.sii-presupuesto-precio-alerta {
+  border:2px solid #e11d48!important; background:#fff1f2!important;
+  color:#9f1239!important; font-weight:900!important;
+  outline:2px solid rgba(244,63,94,.25);
+  animation:sii-price-attention 1.25s ease-in-out infinite;
+}
+@keyframes sii-price-attention {0%,100%{box-shadow:0 0 0 0 rgba(225,29,72,.10)}50%{box-shadow:0 0 0 5px rgba(225,29,72,.28)}}
+
+/* Vista previa para imprimir: permanece DENTRO de la aplicación instalada */
+.sii-print-overlay {
+  position:fixed; z-index:9999; inset:0; background:#eef3f9;
+  display:flex;flex-direction:column;overflow:hidden;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.sii-print-toolbar {
+  flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:14px;
+  background:#fff;border-bottom:1px solid #d9e4f0;
+  padding:12px clamp(12px,2.5vw,26px);
+  box-shadow:0 4px 18px rgba(15,23,42,.06);
+}
+.sii-print-heading{display:flex;flex-direction:column;gap:3px;min-width:0;}
+.sii-print-heading strong{font-size:clamp(14px,2vw,17px);color:#15253f;overflow-wrap:anywhere;}
+.sii-print-heading small{font-size:11px;color:#64748b;}
+.sii-print-actions{display:flex;flex-wrap:wrap;gap:8px;flex-shrink:0;}
+.sii-print-btn{
+  display:inline-flex;justify-content:center;align-items:center;min-height:44px;
+  padding:10px 16px;font-weight:800;font-size:12px;border-radius:12px;
+  background:#e7effb;color:#17447f;border:1px solid #c9daf0;
+}
+.sii-print-btn:hover{background:#dbeafe;}
+.sii-print-primary{background:#195bbb;color:white;border-color:#195bbb;}
+.sii-print-back{background:#e2e8f0;color:#1f2937;border-color:#cbd5e1;}
+.sii-print-frame{flex:1;min-height:0;width:min(960px,100%);margin:auto;border:0;background:#fff;box-shadow:0 10px 24px rgba(15,23,42,.1);}
+@media(max-width:767px){
+  .sii-finance-secondary{grid-template-columns:1fr;}
+  .sii-finance-collect{padding:17px 16px;}
+  .sii-finance-small{padding:15px 16px;}
+  .sii-finance-primary-value{font-size:clamp(27px,8vw,40px);}
+  .sii-finance-value{font-size:clamp(22px,7vw,34px);}
+  .sii-amount-value{font-size:clamp(21px,7vw,29px);}
+  .sii-movement-actions button{width:100%;}
+  .sii-print-toolbar{flex-direction:column;align-items:stretch;padding:9px 12px;}
+  .sii-print-heading small{display:none;}
+  .sii-print-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;}
+  .sii-print-btn{min-width:0;padding:9px;font-size:12px;}
+  .sii-print-frame{width:100%;}
+}
+@media(prefers-reduced-motion:reduce){
+  .sii-presupuesto-precio-alerta{animation:none;border-width:3px!important;}
+  .sii-pro-action-btn,.sii-pro-button-primary,.sii-pro-button-secondary{transition:none;}
+}
