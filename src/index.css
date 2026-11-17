@@ -283,3 +283,105 @@ button.sii-finance-collect:hover,button.sii-finance-small:hover {
 .sii-pro-main button[class*="bg-blue-"],.sii-pro-main button[class*="bg-emerald-"],
 .sii-pro-main button[class*="bg-slate-900"] {box-shadow:0 5px 15px rgba(18,54,103,.11);}
 @media(prefers-reduced-motion:reduce){.sii-pro-main button{transition:none;}}
+
+
+/* SII PRO — Menú de escritorio plegable, con estado persistente */
+.sii-sidebar-toggle {
+  width:100%; min-height:42px; display:flex; align-items:center; justify-content:center;
+  gap:9px; margin:12px 0 3px; padding:9px; border:1px solid #344765;
+  border-radius:12px; color:#d9e7ff; background:#1c2b46; font-size:12px;
+  font-weight:800; transition:background .18s ease;
+}
+.sii-sidebar-toggle:hover { background:#294266; }
+.sii-sidebar-toggle:focus-visible { outline:3px solid #73aff6; outline-offset:2px; }
+@media (min-width:768px) {
+  .sii-sidebar-collapsed .sii-pro-sidebar { width:76px; padding:20px 8px; }
+  .sii-sidebar-collapsed .sii-sidebar-text { display:none!important; }
+  .sii-sidebar-collapsed .sii-pro-brand { padding:0 0 17px; justify-content:center; }
+  .sii-sidebar-collapsed .sii-pro-brand img { width:44px; height:44px; }
+  .sii-sidebar-collapsed .sii-sidebar-toggle { margin-top:10px; }
+  .sii-sidebar-collapsed .sii-pro-navitem { justify-content:center; padding:10px 0; min-height:48px; position:relative; }
+  .sii-sidebar-collapsed .sii-pro-navdot { position:absolute;right:5px;top:6px; }
+  .sii-sidebar-collapsed .sii-pro-nav-label {display:none;}
+  .sii-sidebar-collapsed .sii-pro-navigation { margin-top:11px; }
+  .sii-sidebar-collapsed .sii-pro-sidefoot { text-align:center; padding:16px 0 0; }
+  .sii-sidebar-collapsed .sii-pro-topline { margin-left:76px; }
+  .sii-sidebar-collapsed .sii-pro-hero { margin-left:calc(76px + clamp(12px,2vw,26px)); }
+  .sii-sidebar-collapsed .sii-pro-search { margin-left:calc(76px + clamp(12px,2.4vw,32px)); }
+  .sii-sidebar-collapsed .sii-pro-main { margin-left:76px; max-width:calc(100% - 76px); }
+}
+
+/* Tarjetas de cliente de Cobros: montos siempre visibles en móviles pequeños */
+.sii-client-card-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(220px,auto); align-items:center; gap:12px; padding:14px; }
+.sii-client-card-toggle { min-width:0; width:100%; display:flex; align-items:center; gap:12px; border-radius:12px; }
+.sii-client-card-toggle:focus-visible,.sii-client-card-icon:focus-visible { outline:3px solid #60a5fa; outline-offset:2px; }
+.sii-client-card-name { display:block; flex:1; min-width:0; overflow-wrap:anywhere; }
+.sii-client-card-name strong { display:block; white-space:normal; overflow-wrap:anywhere; }
+.sii-client-card-bottom { display:flex; justify-content:flex-end; align-items:center; gap:12px; min-width:0; }
+.sii-client-card-amount { min-width:0; text-align:right; }
+.sii-client-card-amount strong { display:block; font-size:clamp(16px,1.8vw,21px); letter-spacing:-.035em; line-height:1.25; overflow-wrap:anywhere; white-space:normal; }
+.sii-client-card-controls { display:flex; flex-wrap:nowrap; align-items:center; gap:5px; flex-shrink:0; }
+.sii-client-card-icon { display:flex; align-items:center; justify-content:center; color:#1d4e85; background:#f1f6fd; border:1px solid #dae5f3; width:40px; height:40px; border-radius:12px; }
+.sii-client-card-icon:hover { background:#dbeafe; }
+.sii-client-expand { color:#344767; }
+@media(max-width:1050px) {
+  .sii-client-card-layout { grid-template-columns:minmax(0,1fr); }
+  .sii-client-card-bottom { width:100%; border-top:1px solid #edf2f7; padding-top:10px; justify-content:space-between; }
+  .sii-client-card-amount { text-align:left; flex:1; }
+  .sii-client-card-amount strong { font-size:clamp(19px,3.4vw,23px); }
+}
+@media(max-width:767px) {
+  .sii-client-card-layout {padding:12px;gap:11px;}
+  .sii-client-card-toggle { gap:11px; }
+  .sii-client-card-bottom { display:grid; grid-template-columns:minmax(0,1fr);gap:11px; }
+  .sii-client-card-amount { padding:11px 12px; border-radius:13px; background:#f5f9ff; width:100%; }
+  .sii-client-card-amount strong { font-size:clamp(19px,5.8vw,26px); }
+  .sii-client-card-controls { justify-content:flex-end;gap:8px; }
+  .sii-client-card-icon { min-width:44px; min-height:44px; }
+}
+
+/* Solo Cobros: el resumen azul ocupa menos espacio vertical */
+.sii-hero-compact { padding:14px 18px; margin-top:10px; margin-bottom:10px; border-radius:17px; }
+.sii-hero-compact .sii-pro-heroheader { gap:4px; }
+.sii-hero-compact .sii-finance-board { margin-top:9px; gap:7px; }
+.sii-hero-compact .sii-finance-collect { padding:11px 15px; border-radius:12px; }
+.sii-hero-compact .sii-finance-primary-value { font-size:clamp(21px,2.8vw,31px); margin:4px 0; line-height:1.1; }
+.sii-hero-compact .sii-finance-secondary { gap:7px; }
+.sii-hero-compact .sii-finance-small { padding:10px 14px; border-radius:12px; }
+.sii-hero-compact .sii-finance-value { font-size:clamp(16px,2vw,24px);margin:4px 0;line-height:1.1; }
+.sii-hero-compact .sii-finance-footnote { font-size:10px; }
+.sii-hero-compact .sii-finance-label { font-size:10px; }
+@media(min-width:940px){
+  .sii-hero-compact .sii-finance-board { grid-template-columns:1.3fr 1.7fr; align-items:stretch; }
+  .sii-hero-compact .sii-finance-secondary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .sii-hero-compact .sii-finance-footnote { grid-column:1/-1; }
+}
+@media(max-width:767px){
+  .sii-hero-compact { padding:11px 12px; margin:7px 9px; }
+  .sii-hero-compact .sii-pro-heroheader { display:none; }
+  .sii-hero-compact .sii-finance-board { margin-top:0;gap:6px; }
+  .sii-hero-compact .sii-finance-collect { padding:9px 12px; }
+  .sii-hero-compact .sii-finance-primary-value { font-size:clamp(21px,6vw,27px); }
+  .sii-hero-compact .sii-finance-secondary { grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
+  .sii-hero-compact .sii-finance-small { padding:9px 10px; }
+  .sii-hero-compact .sii-finance-value { font-size:clamp(15px,4vw,21px); }
+  .sii-hero-compact .sii-finance-label { font-size:9px; letter-spacing:0; }
+  .sii-hero-compact .sii-finance-footnote { display:none; }
+}
+
+/* Vista previa móvil: documento dentro de la PWA, no en iframe vacío de Safari */
+.sii-print-mobile-preview { display:none; background:#f1f5f9; padding:10px; min-height:0; flex:1; overflow:auto; -webkit-overflow-scrolling:touch; }
+.sii-print-mobile-sheet { background:#fff; color:#1e293b; max-width:780px; margin:0 auto; padding:14px; border-radius:6px; overflow-x:auto; box-shadow:0 5px 18px #0f172a20; font-size:12px; line-height:1.45; }
+.sii-print-mobile-sheet h1 { color:#164b94; font-size:19px; font-weight:900; margin:0 0 8px; }
+.sii-print-mobile-sheet table { width:100%; border-collapse:collapse; font-size:11px; }
+.sii-print-mobile-sheet :is(th,td) { border-bottom:1px solid #e2e8f0; padding:6px 5px; text-align:left; vertical-align:top; word-break:normal; overflow-wrap:anywhere; }
+.sii-print-mobile-sheet th { background:#eaf2fe; font-weight:800; }
+.sii-print-mobile-sheet .amount {text-align:right;}
+.sii-print-mobile-sheet .no-print,.sii-print-mobile-sheet button,.sii-print-mobile-sheet .close-modal { display:none!important; }
+@media(max-width:767px) {
+  .sii-print-frame {display:none!important;}
+  .sii-print-mobile-preview {display:block;}
+  .sii-print-overlay { height:100dvh; max-height:100dvh; }
+  .sii-print-toolbar { padding-top:calc(9px + env(safe-area-inset-top)); }
+  .sii-print-mobile-sheet {padding:12px 8px; }
+}
