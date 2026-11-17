@@ -1,41 +1,35 @@
-# SII PALLETS — Migración desde la aplicación (ZIP, sin Blaze)
+# SII PALLETS — Migración desde la aplicación, sin cuentas extra y sin Blaze
 
-## Proyectos
-- Original principal: controlcheque-19226.
-- Original Pagos Avanzados: listapagos.
-- Firebase nuevo personal: sii-pallets-app.
-- Repo original: martinrodriguez-dotcom/ControlCheque.
-- Repo personal: rpmartinrodriguez/CONTROL-SII-PALLETS-APP.
+## Bases de origen y destino
+- Origen ControlCheque: controlcheque-19226.
+- Origen Pagos: listapagos.
+- Destino personal: sii-pallets-app.
+- Repositorios: martinrodriguez-dotcom/ControlCheque y rpmartinrodriguez/CONTROL-SII-PALLETS-APP.
 
-## Configuración de acceso administrativo (OBLIGATORIA)
-1. Abrir Firebase Console, proyecto controlcheque-19226 → Authentication → Sign-in method: activar Email/Password.
-2. En Authentication → Users crear usuario administrador por correo y contraseña y copiar su UID.
-3. En Netlify ORIGINAL configurar variable de entorno VITE_SII_MIGRATION_ADMIN_UID con ese UID. Publicar de nuevo.
-4. Repetir los pasos para el proyecto nuevo sii-pallets-app y su Netlify PERSONAL. Los UID son diferentes aunque el correo sea idéntico.
-5. En la pestaña MIGRACIÓN iniciar sesión con ese usuario. La sesión es temporal y aislada del login anónimo de la app.
-6. Las reglas Firestore deben permitir las lecturas y escrituras del operador autorizado. Nunca usar reglas públicas (allow read, write: if true). La restricción por UID en el cliente es solo de interfaz; la seguridad verdadera exige reglas Firestore.
+## Acceso
+- La herramienta usa la misma sesión Firebase anónima que ya utiliza la aplicación. No requiere crear correo ni contraseña, ni configurar VITE_SII_MIGRATION_ADMIN_UID.
+- El botón **MIGRACIÓN / RESPALDO** queda visible sobre la barra horizontal. Se puede abrir usando ?migracion=1.
+- IMPORTANTE: Firebase Anonymous no autentica la identidad del propietario. Si las reglas Firestore permiten a cualquier usuario anónimo leer/escribir, esa persona también puede operar sobre estos datos. Restringir reglas de acceso y retirar/inhabilitar la herramienta tras la migración.
 
-## Respaldo original
-1. Abrir app ORIGINAL → menú MIGRACIÓN → iniciar sesión → Descargar respaldo completo (ZIP).
-2. Se exportan todas las rutas conocidas usadas por ControlCheque y finanzas/* del proyecto listapagos.
-3. ZIP: manifiesto, dos archivos JSON con documentos de origen y sumas SHA256; guardar PRIVADO y fuera de GitHub.
-4. Si alguna consulta falla, no se genera un ZIP parcial.
+## Descarga de las dos bases
+- Opción A: app original → MIGRACIÓN / RESPALDO → Descargar respaldo completo (ZIP).
+- Opción B (preferida si el Netlify original no recibió el despliegue): app personal nueva → MIGRACIÓN / RESPALDO → Descargar respaldo completo (ZIP). Esta opción se conecta en solo lectura a las dos bases viejas con Firebase Auth anónima en el origen principal.
+- El ZIP contiene dos JSON y un manifiesto con recuentos y hashes SHA256. Descargarlo y guardarlo de forma privada.
+- Si se producen errores de permisos, revisar las reglas actuales de Firebase sin abrirlas públicamente.
+- El navegador solo exporta las colecciones y subcolecciones conocidas del código; comprobar en Firebase Console la existencia de otras colecciones antes de declarar completitud.
 
-## Importación personal
-1. Confirmar que la app nueva apunta a sii-pallets-app (en rama de migración). No cargar movimientos reales antes del corte.
-2. NUEVA → MIGRACIÓN → iniciar sesión → seleccionar ZIP → Comparar con la base nueva (no escribe).
-3. Examinar documentos ausentes, idénticos y en conflicto. Con conflictos, se bloquea la importación y no se sobreescribe.
-4. Confirmar, escribir IMPORTAR y pulsar Restaurar documentos faltantes. Importa hasta 1500 por ejecución; repetir con el mismo archivo para continuar.
-5. El proceso vuelve a leer los documentos y comprobar los valores, IDs y rutas.
-6. Comparar totales de Pagos, Caja, Cobros, Balance, bancos, Cartera, Facturación, Pallets y Presupuestos.
+## Restauración
+1. En la NUEVA app, abrir MIGRACIÓN / RESPALDO (con Firebase nuevo sii-pallets-app).
+2. Seleccionar ZIP y presionar Comparar con la base nueva.
+3. Revisar faltantes, idénticos y conflictos. Con conflictos, no importar.
+4. Confirmar la operación escribiendo IMPORTAR. Se crean hasta 1500 documentos por ejecución con transacciones que impiden sobrescribir datos ajenos.
+5. Repetir comparación e importación si quedan documentos pendientes.
+6. Verificar cero faltantes y cero conflictos; revisar saldos de Caja, Cobros, Pagos, bancos, Balance, Cartera y Pallets.
 
-## Corte seguro
-- Mantener bases originales sin borrar. Antes del cambio final, suspender altas/modificaciones, descargar ZIP final y verificarlo.
-- Si un documento ya importado fue modificado después del primer ZIP, la herramienta detecta diferencia y se detiene, requiere conciliación específica.
-- No pasar a producción sin contar documentos, comparar saldos y revisar reglas de acceso.
-
-## Limitaciones
-- El navegador no descubre colecciones desconocidas: verificar visualmente en Firebase Console que las rutas usadas por la app cubren los datos relevantes.
-- Authentication, Storage, reglas, índices, metadatos Firestore de creación/edición, localStorage y número local de Presupuestos PDF se respaldan aparte.
-- Se preservan los ID, rutas y valores Firestore con los tipos conocidos. No se borran datos ni se sobrescriben documentos distintos.
-- Las operaciones consumen cuotas gratuitas ordinarias de Spark; no requiere Blaze.
+## Corte y limitaciones
+- Antes del corte definitivo, suspender operaciones en las apps viejas y realizar un respaldo final actualizado.
+- Documentos que cambiaron desde una importación anterior requieren conciliación, no reemplazo automático.
+- No borrar los proyectos viejos hasta verificar todos los datos y reglas.
+- El ZIP no copia usuarios Firebase Authentication, reglas, índices, archivos Storage ni datos de localStorage (incluyendo correlativos locales de Presupuestos PDF).
+- Reglas seguras y autorización real deben configurarse antes de producción; la sesión anónima no diferencia administradores de visitantes.
+- La copia usa operaciones comunes de Firestore sujetas a cuotas Spark. No requiere activar Blaze.
