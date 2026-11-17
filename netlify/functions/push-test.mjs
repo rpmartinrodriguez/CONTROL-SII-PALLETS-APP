@@ -1,4 +1,4 @@
-import { firebaseAdmin, verifyAuthorized, jsonResponse, sha } from '../lib/push-core.mjs';
+import { firebaseAdmin, verifyAuthorized, jsonResponse, sha, isQuotaExceeded } from '../lib/push-core.mjs';
 import { Timestamp } from 'firebase-admin/firestore';
 
 // Prueba de push REAL: se envía únicamente al token registrado para el UID
@@ -48,7 +48,11 @@ export default async function handler(request) {
 
     return jsonResponse(200, { ok: true, accepted: true });
   } catch (err) {
-    console.error('SII push test:', err?.message || err);
+    console.error('SII push test:', err?.code || '', err?.message || String(err));
+    if (isQuotaExceeded(err)) return jsonResponse(429, {
+      code: 'FIRESTORE_QUOTA',
+      error: 'Firebase alcanzó un límite temporal de operaciones. No se pudo probar el envío push. Revisá Firestore → Uso.'
+    });
     return jsonResponse(400, { error: err?.message || 'No se pudo realizar la prueba.' });
   }
 }
