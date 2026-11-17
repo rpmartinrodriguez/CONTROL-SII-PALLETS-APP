@@ -99,7 +99,12 @@ export default function App() {
             if (event.origin !== window.location.origin ||
                 event.source !== pagosIframeRef.current?.contentWindow ||
                 event.data?.type !== 'SII_PAGOS_GUARDADOS_V1') return;
-            void solicitarChequeoPush();
+            const kind=event.data?.kind;
+            const id=event.data?.id;
+            const action=event.data?.action;
+            if(kind==='pago_avanzado' && (action==='create'||action==='payment') && id!=null){
+                solicitarChequeoPush({kind,id:String(id),action});
+            }
         };
         window.addEventListener('message', handler);
         return () => window.removeEventListener('message', handler);
@@ -929,16 +934,17 @@ export default function App() {
                     let nextDueDateStr = newItem.dueDate;
                     if (newItem.dueDate) { const d = new Date(newItem.dueDate + 'T00:00:00'); d.setMonth(d.getMonth() + i); nextDueDateStr = d.toISOString().split('T')[0]; }
                     const currentPayee = `${newItem.payee} (Cuota ${i + 1}/${newItem.installments})`;
-                    await addDoc(collection(db, targetCollection, 'main_list', 'items'), { ...itemData, payee: currentPayee, monthYear: currentMonthYear, dueDate: nextDueDateStr, issueDate: newItem.issueDate, createdAt: new Date().toISOString(), paymentHistory: [] });
+                    const created=await addDoc(collection(db, targetCollection, 'main_list', 'items'), { ...itemData, payee: currentPayee, monthYear: currentMonthYear, dueDate: nextDueDateStr, issueDate: newItem.issueDate, createdAt: new Date().toISOString(), paymentHistory: [] });
+                    if(mode==='collect'||mode==='pay')solicitarChequeoPush({kind:mode==='collect'?'cobro':'pago',id:created.id,action:'create'});
                 }
             } else { 
-                await addDoc(collection(db, targetCollection, 'main_list', 'items'), { ...itemData, issueDate: newItem.issueDate, dueDate: newItem.dueDate, monthYear: newItem.monthYear || '', createdAt: new Date().toISOString(), paymentHistory: [] }); 
+                const created=await addDoc(collection(db, targetCollection, 'main_list', 'items'), { ...itemData, issueDate: newItem.issueDate, dueDate: newItem.dueDate, monthYear: newItem.monthYear || '', createdAt: new Date().toISOString(), paymentHistory: [] });
+                if(mode==='collect'||mode==='pay')solicitarChequeoPush({kind:mode==='collect'?'cobro':'pago',id:created.id,action:'create'}); 
             }
         }
         setNewItem({ number: '', issueDate: '', dueDate: '', amount: '', payee: '', paidAmount: 0, subtype: 'cheque', category: 'others', status: 'pending', monthYear: '', cashType: 'income', bank: '', isRecurring: false, installments: 2 });
         setEditingId(null); setShowAddForm(false);
-        // Servidor comprueba cambios reales; no se envían datos financieros desde el cliente.
-        void solicitarChequeoPush();
+        // Cada alta notifica su propio ID. Editar otros datos no genera avisos.
     };
 
     const handleCashAddAction = async (e) => {
@@ -994,7 +1000,9 @@ export default function App() {
         const newHistory = [...(item.paymentHistory || []), historyRecord];
         await updateDoc(doc(db, collectionName, 'main_list', 'items', item.id), { status: newStatus, paidAmount: currentPaid, paymentHistory: newHistory, paymentDetails: historyRecord });
         setPaymentModal({ isOpen: false, item: null, method: 'transfer', proof: '', type: 'total', amount: '' });
-        void solicitarChequeoPush();
+        if(item.type==='collect'||item.type==='pay'){
+            solicitarChequeoPush({kind:item.type==='collect'?'cobro':'pago',id:String(item.id),action:'payment'});
+        }
     };
 
     const markFullPaymentAction = async (item) => { setPaymentModal({ isOpen: true, item: item, method: 'transfer', proof: '', type: 'total', amount: '' }); };
@@ -1007,7 +1015,7 @@ export default function App() {
         if(item.type === 'expense') collectionName = 'gastos_public_shared'; 
         if(item.type === 'cash') collectionName = 'caja_public_shared';
         await deleteDoc(doc(db, collectionName, 'main_list', 'items', item.id));
-        void solicitarChequeoPush();
+        // Borrar no dispara una lectura global de Cobros/Pagos.
     };
 
     const changeMode = (newMode) => {
