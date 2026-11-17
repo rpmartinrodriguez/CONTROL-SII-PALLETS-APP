@@ -109,8 +109,8 @@ function plusDays(date,days) {
   return new Date(Date.UTC(y,m-1,d+days)).toISOString().slice(0,10);
 }
 async function getSubscribers(db) {
-  const snap=await db.collection('sii_push_devices').where('enabled','==',true).get();
   if(!autoEnrollmentEnabled()) return [];
+  const snap=await db.collection('sii_push_devices').where('enabled','==',true).get();
   return snap.docs.map(d=>d.data()).filter(x=>Boolean(x.uid)&&typeof x.token==='string'&&x.token.length>20);
 }
 async function deliver(db,messaging,event,devices) {
@@ -120,6 +120,7 @@ async function deliver(db,messaging,event,devices) {
   catch(error){if(error.code===6||error.code==='already-exists')return 0;throw error;}
   const tokens=[...new Set(devices.map(x=>x.token))];
   let sent=0;
+  const errores=[];
   try{
     for(let i=0;i<tokens.length;i+=500) {
       const group=tokens.slice(i,i+500);
@@ -130,12 +131,20 @@ async function deliver(db,messaging,event,devices) {
       sent+=out.successCount;
       for(let j=0;j<out.responses.length;j++){
         const error=out.responses[j].error;
+        if(error) errores.push(String(error.code||error.message||'FCM_ERROR').slice(0,90));
         if(error&&['messaging/registration-token-not-registered','messaging/invalid-registration-token'].includes(error.code)) {
           await db.doc('sii_push_devices/'+sha(group[j]).slice(0,40)).set({enabled:false},{merge:true});
         }
       }
     }
-    await ref.update({status:'sent',sent,finishedAt:FieldValue.serverTimestamp()});
+    // FCM puede responder HTTP 200 aunque TODOS los tokens fallen.
+    // En ese caso el evento NO debe figurar como entregado.
+    await ref.update({
+      status:sent>0?'sent':'error',
+      sent,
+      ...(errores.length?{error:errores.slice(0,4).join(', ').slice(0,300)}:{}),
+      finishedAt:FieldValue.serverTimestamp()
+    });
     return sent;
   }catch(error){
     await ref.update({status:'error',error:String(error.message||error).slice(0,300)});
@@ -179,8 +188,14 @@ async function snapshotChanges(db,group,items) {
 }
 export async function syncPush() {
   const {db,messaging}=firebaseAdmin();
-  const datasets=await getData(db);
   const devices=await getSubscribers(db);
+  // Sin equipos habilitados no consumimos eventos ni adelantamos los snapshots.
+  // Así un fallo temporal de registro no descarta silenciosamente nuevos cobros.
+  if(!devices.length)return {
+    cambiosDetectados:0,avisosEnviados:0,gruposInicializados:0,
+    dispositivos:0,sinDispositivos:true,verificado:argDate()
+  };
+  const datasets=await getData(db);
   let changes=0,sent=0,baselines=0;
   for(const [group,items] of Object.entries(datasets)) {
     const result=await snapshotChanges(db,group,items);
