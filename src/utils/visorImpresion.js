@@ -31,13 +31,14 @@ export function abrirVisorImpresion({titulo,contenido,css,nombreArchivo}){
   iframe.setAttribute('sandbox','allow-same-origin allow-modals');iframe.srcdoc=contentHTML;
 
   async function pdfBlob(){
-    if(typeof window.html2pdf!=='function')throw Error('El generador de PDF no se cargó.');
+    const html2pdfModule=await import('html2pdf.js');
+    const html2pdf=html2pdfModule.default||html2pdfModule;
     const box=document.createElement('div');
     box.style.cssText='position:fixed;left:-200vw;top:0;width:794px;background:white;padding:12px;';
     box.innerHTML='<style>'+(css||'')+'</style><div class="report-container">'+contenido+'</div>';
     document.body.appendChild(box);
     try{
-      return await window.html2pdf().set({
+      return await html2pdf().set({
         margin:10,filename,image:{type:'jpeg',quality:.96},
         html2canvas:{scale:1.7,useCORS:true,logging:false},
         jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
