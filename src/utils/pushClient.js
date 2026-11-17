@@ -21,12 +21,15 @@ async function comprobarCambios() {
       method:'POST',
       headers: { Authorization:'Bearer ' + await auth.currentUser.getIdToken() }
     });
-    if (response.status === 429) {
+    const result=await response.json().catch(()=>({}));
+    if (response.status === 429 && result.code!=='PUSH_TEST_COOLDOWN') {
       // No seguir agotando la base cuando Firestore informa cuota superada.
       sinCuotaHasta = Date.now() + 30 * 60 * 1000;
-      console.warn('Push temporalmente pausado por cuota de Firestore.');
+      console.warn('Push temporalmente pausado por cuota de Firestore:',result.error||'HTTP 429');
     } else if (!response.ok) {
-      console.warn('El envío push está pendiente. Código:', response.status);
+      console.warn('SII push-check falló: HTTP '+response.status+' · '+(result.error||'Función Netlify no disponible'));
+    } else if (result.sinDispositivos) {
+      console.warn('SII push-check: no hay dispositivos activos para recibir avisos.');
     }
   } catch (error) {
     console.warn('Aviso push diferido:', error?.message || String(error));
