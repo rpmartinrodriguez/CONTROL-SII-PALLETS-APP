@@ -267,3 +267,19 @@ button.sii-finance-collect:hover,button.sii-finance-small:hover {
   .sii-presupuesto-precio-alerta{animation:none;border-width:3px!important;}
   .sii-pro-action-btn,.sii-pro-button-primary,.sii-pro-button-secondary{transition:none;}
 }
+
+
+/* Microinteracciones consistentes en toda la aplicación corporativa */
+.sii-pro-main button {
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  transition:background-color .14s ease,color .14s ease,box-shadow .14s ease,transform .14s ease;
+}
+.sii-pro-main button:focus-visible,.sii-pro-topline button:focus-visible {
+  outline:3px solid #73aff6;outline-offset:2px;
+}
+.sii-pro-main button:disabled {cursor:not-allowed;opacity:.55;box-shadow:none;}
+.sii-pro-main button:not(:disabled):active {transform:scale(.985);}
+.sii-pro-main button[class*="bg-blue-"],.sii-pro-main button[class*="bg-emerald-"],
+.sii-pro-main button[class*="bg-slate-900"] {box-shadow:0 5px 15px rgba(18,54,103,.11);}
+@media(prefers-reduced-motion:reduce){.sii-pro-main button{transition:none;}}
