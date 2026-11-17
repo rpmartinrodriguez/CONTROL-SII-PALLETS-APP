@@ -55,7 +55,8 @@ const EVENT_PATHS={
   pago:'cheques_public_shared/main_list/items',
   presupuesto:'historial_presupuestos_sii'
 };
-const RECENT_WINDOW_MS=30*60*1000;
+// Permite reintentar avisos que quedaron en la cola durante un corte o cuota agotada.
+const RECENT_WINDOW_MS=48*60*60*1000;
 export const isRecentEventTime=(value,now=Date.now())=>{
   const millis=typeof value?.toMillis==='function'?value.toMillis():
     typeof value==='string'||typeof value==='number'?new Date(value).getTime():NaN;
