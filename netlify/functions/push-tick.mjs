@@ -1,8 +1,9 @@
 import { syncPush } from '../lib/push-core.mjs';
 
 // Todos los días a las 09:00 de Argentina (12:00 UTC).
-// Es un respaldo para los vencimientos de dos días antes y los cambios que
-// no dispararon el aviso inmediato. Solo se ejecuta en producción.
+// Consulta únicamente los vencimientos de dos días después mediante filtros.
+// Los movimientos nuevos se informan por ID al guardarse, nunca con barridos.
+// Solo se ejecuta en producción.
 export default async function handler() {
   try {
     const result=await syncPush();
