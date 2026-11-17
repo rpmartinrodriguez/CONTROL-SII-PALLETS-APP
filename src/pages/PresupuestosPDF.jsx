@@ -25,9 +25,11 @@ const initial=()=>({
 const input='block w-full border border-slate-200 rounded-xl px-3 py-2.5 bg-white text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400';
 const label='block text-xs font-bold text-slate-600 mb-1';
 const peso = n => pesosPDF(n);
-const userNotice='La numeración se guarda en este dispositivo. Si emitís presupuestos desde varios equipos, verificá manualmente que no se repita.';
+const userNotice='La numeración es automática y se consulta en la base compartida. Si otro equipo usa el número antes de guardar, se asigna el siguiente disponible.';
 export default function PresupuestosPDF() {
   const [quote,setQuote]=useState(initial);
+  const [numeroAutomatico,setNumeroAutomatico]=useState(true);
+  const [historialCargado,setHistorialCargado]=useState(false);
   const [busy,setBusy]=useState('');
   const [error,setError]=useState('');
   const [notice,setNotice]=useState('');
@@ -48,9 +50,17 @@ export default function PresupuestosPDF() {
     },err=>setHistorialError('No se pudieron cargar clientes: '+err.message));
     const unsubHistorial=onSnapshot(collection(db,'historial_presupuestos_sii'),snap=>{
       setHistorial(snap.docs.map(d=>({id:d.id,...d.data()})));
+      setHistorialCargado(true);
     },err=>setHistorialError('No se pudo cargar el historial: '+err.message));
     return ()=>{unsubClientes();unsubHistorial();};
   },[]);
+  // El número sugerido procede del historial compartido, no del contador del equipo.
+  // No se altera si el usuario decidió introducir manualmente otro número.
+  useEffect(()=>{
+    if(!historialCargado || !numeroAutomatico || busy)return;
+    const disponible=numeroCotizacion(proximoNumeroDisponible(historial,COTIZACION_INICIO,getSequence()));
+    setQuote(q=>q.numero===disponible?q:{...q,numero:disponible});
+  },[historial,historialCargado,numeroAutomatico,busy]);
   const gruposGuardados=useMemo(()=>agruparPresupuestosPorCliente(historial),[historial]);
   const sugerirNumero=()=>numeroCotizacion(proximoNumeroDisponible(historial,
     Number(quote.numero?.split('-')[1])+1||COTIZACION_INICIO,getSequence()));
@@ -58,6 +68,7 @@ export default function PresupuestosPDF() {
     const numero=sugerirNumero();
     const copia=presupuestoCopia(original,numero,fechaHoyLocal(),()=>ITEM_VACIO().id);
     if(!copia.items.length)copia.items=[ITEM_VACIO()];
+    setNumeroAutomatico(true);
     setQuote(copia);
     setClienteId(original.clienteId||clientes.find(c=>
       normalizarBusqueda(c.razonSocial)===normalizarBusqueda(original.cliente?.razonSocial))?.id||'');
@@ -108,12 +119,12 @@ export default function PresupuestosPDF() {
     }catch(err){setError('No se pudo guardar el cliente: '+err.message);}
     finally{setGuardandoCliente(false);}
   };
-  const guardarHistorial=async total=>{
-    const referencia=doc(db,'historial_presupuestos_sii',quote.numero);
+  const guardarHistorial=async (presupuesto,total)=>{
+    const referencia=doc(db,'historial_presupuestos_sii',presupuesto.numero);
     const original={
-      numero:quote.numero,fecha:quote.fecha,cuenta:quote.cuenta,
-      clienteId:clienteId||null,cliente:{...quote.cliente},
-      items:quote.items.map(({id,codigo,descripcion,cantidad,bultos,precioUnitario})=>({id,codigo,descripcion,cantidad,bultos,precioUnitario})),
+      numero:presupuesto.numero,fecha:presupuesto.fecha,cuenta:presupuesto.cuenta,
+      clienteId:clienteId||null,cliente:{...presupuesto.cliente},
+      items:presupuesto.items.map(({id,codigo,descripcion,cantidad,bultos,precioUnitario})=>({id,codigo,descripcion,cantidad,bultos,precioUnitario})),
       totalCentavos:total.totalCentavos
     };
     await runTransaction(db,async transaccion=>{
@@ -121,7 +132,9 @@ export default function PresupuestosPDF() {
       if(previo.exists()){
         const anterior=previo.data();
         if(JSON.stringify({...anterior,guardadoEn:undefined})!==JSON.stringify({...original,guardadoEn:undefined})){
-          throw new Error('Ya existe otro presupuesto con el número '+quote.numero+'. Usá Nuevo presupuesto o revisá la numeración.');
+          const error=new Error('Número de presupuesto ocupado');
+          error.code='PRESUPUESTO_OCUPADO';
+          throw error;
         }
       }else transaccion.set(referencia,{...original,guardadoEn:serverTimestamp()});
     });
@@ -144,38 +157,55 @@ export default function PresupuestosPDF() {
     const n=proximoNumeroDisponible(historial,Number(quote.numero?.split('-')[1]) + 1 || COTIZACION_INICIO,getSequence());
     try {localStorage.setItem(SERIE_KEY,String(n));}catch{/* Storage opcional */}
     setClienteId('');setSugerencias(false);setPreciosParaRevisar([]);
+    setNumeroAutomatico(true);
     setQuote({...initial(),numero:numeroCotizacion(n)});
     setError('');setNotice('Nuevo presupuesto listo.');
   };
   const run=async(action)=>{
     if(busy)return;
     setError('');setNotice('');
+    setBusy(action);
     try {
       validarPresupuesto(quote);
-      setBusy(action);
-      const {blob,filename,totals:calculado}=await generarPdfPresupuesto(quote);
-      // El historial se guarda al emitir un PDF para recuperar exactamente el último precio.
-      // Evita que una falla de Firestore se confunda con un PDF creado sin registrar.
-      await guardarHistorial(calculado);
+      let presupuesto={...quote};
+      let resultado;
+      // Transacción por número de documento: protege también ante dos equipos
+      // que emiten en el mismo instante. Reintenta ante conflictos de numeración.
+      for(let intento=0;intento<25;intento++){
+        const calculado=calcularPresupuesto(presupuesto);
+        try {
+          await guardarHistorial(presupuesto,calculado);
+          resultado=await generarPdfPresupuesto(presupuesto);
+          break;
+        }catch(err){
+          if(err.code!=='PRESUPUESTO_OCUPADO'||!numeroAutomatico)throw err;
+          const siguiente=proximoNumeroDisponible(historial,Number(presupuesto.numero.split('-')[1])+1,getSequence());
+          presupuesto={...presupuesto,numero:numeroCotizacion(siguiente)};
+        }
+      }
+      if(!resultado)throw new Error('No se pudo asignar un número libre. Volvé a intentar.');
+      setQuote(q=>({...q,numero:presupuesto.numero}));
+      const secuencia=Number(presupuesto.numero.split('-')[1])+1;
+      if(Number.isSafeInteger(secuencia)&&secuencia>getSequence()){
+        try{localStorage.setItem(SERIE_KEY,String(secuencia));}catch{/* almacenamiento opcional */}
+      }
+      const {blob,filename}=resultado;
       if(action==='download'){
         descargarPdf(blob,filename);
-        recordNumber();
-        setNotice('PDF generado. Podés compartir el archivo por WhatsApp o correo.');
+        setNotice('PDF generado y registrado como '+presupuesto.numero+'.');
       }else if(action==='share'){
         const file=new File([blob],filename,{type:'application/pdf'});
         if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
           try{
             await navigator.share({title:'Presupuesto SII PALLETS',text:'Adjunto presupuesto comercial.',files:[file]});
-            recordNumber();
-            setNotice('Se abrió la opción de compartir el PDF.');
+            setNotice('Se abrió la opción de compartir el presupuesto '+presupuesto.numero+'.');
           }catch(err){
-            if(err?.name==='AbortError'){setNotice('Compartir cancelado. El presupuesto sigue disponible.');}
+            if(err?.name==='AbortError'){setNotice('Compartir cancelado. El presupuesto '+presupuesto.numero+' quedó registrado.');}
             else throw err;
           }
         }else{
           descargarPdf(blob,filename);
-          recordNumber();
-          setNotice('El dispositivo no admite compartir PDFs directamente. Se descargó el archivo: adjuntalo desde WhatsApp o tu correo.');
+          setNotice('PDF '+presupuesto.numero+' descargado. Adjuntalo desde WhatsApp o tu correo.');
         }
       }
     }catch(err){setError(err?.message||'No se pudo generar el presupuesto.');}
@@ -230,7 +260,7 @@ export default function PresupuestosPDF() {
         <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
           <div className="flex items-center justify-between gap-3"><h3 className="font-extrabold text-slate-800">1. Datos del presupuesto</h3><span className="text-[11px] text-slate-500">Datos del emisor fijos</span></div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <label><span className={label}>N° de presupuesto</span><input className={input} value={quote.numero} onChange={e=>setQuote(q=>({...q,numero:e.target.value}))} placeholder="0005-00000502" maxLength={13}/></label>
+            <label><span className={label}>N° de presupuesto</span><input className={input} value={quote.numero} onChange={e=>{setNumeroAutomatico(false);setQuote(q=>({...q,numero:e.target.value}));}} placeholder="0005-00000502" maxLength={13}/></label>
             <label><span className={label}>Fecha de emisión</span><input className={input} type="date" value={quote.fecha} onChange={e=>setQuote(q=>({...q,fecha:e.target.value}))}/></label>
           </div>
           <p className="text-[11px] text-slate-500">{userNotice}</p>
