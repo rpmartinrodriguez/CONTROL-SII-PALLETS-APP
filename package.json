@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm test && vite build",
+    "build": "npm test && npm run check:push && vite build",
     "preview": "vite preview",
-    "test": "node --test src/utils/balanceSemanal.test.mjs src/utils/resumenCuentasCobros.test.mjs src/utils/presupuestosSii.test.mjs src/utils/migracionFirestore.test.mjs"
+    "test": "node --test src/utils/balanceSemanal.test.mjs src/utils/resumenCuentasCobros.test.mjs src/utils/presupuestosSii.test.mjs src/utils/migracionFirestore.test.mjs src/utils/clientesPresupuesto.test.mjs",
+    "check:push": "node --check netlify/functions/_push-core.mjs && node --check netlify/functions/push-register.mjs && node --check netlify/functions/push-check.mjs && node --check netlify/functions/push-tick.mjs"
   },
   "dependencies": {
     "firebase": "^10.7.1",
@@ -15,7 +16,8 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "fflate": "^0.8.2",
-    "jspdf": "^4.2.1"
+    "jspdf": "^4.2.1",
+    "firebase-admin": "^13.6.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
