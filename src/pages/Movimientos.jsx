@@ -457,61 +457,56 @@ export default function Movimientos({
                 {groupedView && (groupedView.type === 'flat' ? groupedView.data.map(item => renderMovementCard(item)) : groupedView.data.map((group, idx) => {
                     const isClientGroup = groupedView.type === 'client-grouped';
                     return (
-                    <div key={idx} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-2">
-                        <button 
-                            onClick={() => setExpandedGroups(p => ({...p, [group.key]: !p[group.key]}))} 
-                            className="w-full p-3 flex justify-between items-center bg-gray-50 hover:bg-gray-100 transition"
-                        >
-                            <div className="flex items-center gap-3">
+                    <div key={idx} className="sii-client-card bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-3">
+                        <div className="sii-client-card-layout">
+                            <button type="button"
+                                aria-expanded={Boolean(expandedGroups[group.key])}
+                                aria-label={(expandedGroups[group.key]?'Contraer ':'Desplegar ')+String(group.label||'grupo')}
+                                onClick={()=>setExpandedGroups(p=>({...p,[group.key]:!p[group.key]}))}
+                                className="sii-client-card-toggle text-left">
                                 {isClientGroup ? (
-                                    <div className={`bg-emerald-100 text-emerald-700 font-bold rounded-full p-2 w-10 h-10 flex items-center justify-center shrink-0`}>
+                                    <span className="bg-emerald-100 text-emerald-700 rounded-xl w-11 h-11 shrink-0 flex items-center justify-center">
                                         <IconUserGroup className="w-5 h-5"/>
-                                    </div>
+                                    </span>
                                 ) : (
-                                    <div className={`${theme.light} ${theme.text} font-bold rounded-lg p-2 text-center min-w-[50px]`}>
+                                    <span className={theme.light+' '+theme.text+' rounded-xl p-2 text-center min-w-[50px]'}>
                                         <span className="block text-xs uppercase">
-                                            {group.label && group.label.includes(' ') ? group.label.split(' ')[0] : new Date(group.key + 'T00:00:00').toLocaleDateString('es-AR', {month:'short'})}
+                                            {group.label && group.label.includes(' ') ? group.label.split(' ')[0] : new Date(group.key+'T00:00:00').toLocaleDateString('es-AR',{month:'short'})}
                                         </span>
-                                        <span className="block text-xl leading-none">
-                                            {group.key.includes('-') && group.key.length === 7 ? '' : new Date(group.key + 'T00:00:00').getDate()}
+                                        <span className="block text-lg font-black">
+                                            {group.key.includes('-') && group.key.length===7 ? '' : new Date(group.key+'T00:00:00').getDate()}
                                         </span>
-                                    </div>
+                                    </span>
                                 )}
-                                <div className="text-left overflow-hidden">
-                                    <p className="text-sm font-bold text-gray-700 truncate">
-                                        {groupedView.type === 'client-grouped' || mode === 'expenses' ? group.label : `${group.items.length} Items`}
-                                    </p>
-                                    {(groupedView.type === 'client-grouped' || mode === 'expenses') && (
-                                        <p className="text-xs text-gray-500">
-                                            {group.count} {mode === 'pay' && payTab === 'realizados' ? 'Pagados' : 'Pendientes'}
-                                        </p>
-                                    )}
+                                <span className="sii-client-card-name">
+                                    <strong className="text-sm sm:text-base font-black text-slate-900 break-words leading-snug">{groupedView.type==='client-grouped'||mode==='expenses'?group.label:`${group.items.length} ítems`}</strong>
+                                    {(groupedView.type==='client-grouped'||mode==='expenses')&&<small className="block mt-1 text-xs font-medium text-slate-500">{group.count} {mode==='pay'&&payTab==='realizados'?'pagados':'pendientes'}</small>}
+                                </span>
+                            </button>
+                            <div className="sii-client-card-bottom">
+                                <div className="sii-client-card-amount">
+                                    <span className="text-[10px] uppercase font-extrabold tracking-wider text-slate-500 sm:hidden">Saldo del cliente</span>
+                                    <strong className="text-slate-900 tabular-nums">{formatMoney(group.total)}</strong>
+                                </div>
+                                <div className="sii-client-card-controls">
+                                    {isClientGroup&&<>
+                                        <button type="button" onClick={()=>triggerClientReport(group,'print')}
+                                            className="sii-client-card-icon" aria-label={'Imprimir estado de '+group.label} title="Imprimir estado">
+                                            <IconPrinter className="w-5 h-5"/>
+                                        </button>
+                                        <button type="button" onClick={()=>triggerClientReport(group,'download')}
+                                            className="sii-client-card-icon" aria-label={'Descargar PDF de '+group.label} title="Descargar PDF">
+                                            <IconDownload className="w-5 h-5"/>
+                                        </button>
+                                    </>}
+                                    <button type="button" onClick={()=>setExpandedGroups(p=>({...p,[group.key]:!p[group.key]}))}
+                                        aria-expanded={Boolean(expandedGroups[group.key])} aria-label={'Ver comprobantes de '+String(group.label||'grupo')}
+                                        className="sii-client-card-icon sii-client-expand">
+                                        <IconChevronDown className={`w-5 h-5 transition-transform ${expandedGroups[group.key]?'rotate-180':''}`}/>
+                                    </button>
                                 </div>
                             </div>
-                            <div className="text-right flex items-center gap-2">
-                                <p className="text-lg font-black text-gray-800">{formatMoney(group.total)}</p>
-                                {isClientGroup && (
-                                    <div className="flex gap-1 ml-2 border-l pl-2">
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); triggerClientReport(group, 'print'); }} 
-                                            className="p-1.5 rounded-lg bg-gray-100 hover:bg-emerald-100 text-gray-400 hover:text-emerald-700 transition-colors" 
-                                            title="Imprimir Estado"
-                                        >
-                                            <IconPrinter className="w-4 h-4" />
-                                        </button>
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); triggerClientReport(group, 'download'); }} 
-                                            className="p-1.5 rounded-lg bg-gray-100 hover:bg-emerald-100 text-gray-400 hover:text-emerald-700 transition-colors" 
-                                            title="Descargar PDF"
-                                        >
-                                            <IconDownload className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                )}
-                                <IconChevronDown className={`w-5 h-5 text-gray-400 transition-transform ml-1 ${expandedGroups[group.key] ? 'rotate-180' : ''}`} />
-                            </div>
-                        </button>
-                        
+                        </div>
                         {/* CONTENIDO DESPLEGADO DEL CLIENTE/FECHA */}
                         {expandedGroups[group.key] && (
                             <div className="border-t border-gray-100 animate-fade-in bg-gray-50 p-2 space-y-2">
