@@ -20,7 +20,7 @@ export default function CentroNotificaciones({onOpen}){
           <span className="mt-1 shrink-0 h-9 w-9 rounded-xl bg-blue-50 flex items-center justify-center text-blue-700"><IconBell className="w-4 h-4"/></span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2 justify-between">
-              <strong className="text-sm text-slate-900 break-words">{item.categoria?.startsWith('partial_')&&<span className="inline-block mr-2 rounded-md bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 text-xs font-black tracking-wide">PARCIAL</span>}{item.categoria?.startsWith('partial_')?item.titulo.replace(/^PARCIAL\\s*[·-]\\s*/,''):item.titulo}</strong>
+              <strong className="text-sm text-slate-900 break-words">{item.categoria?.startsWith('partial_')&&<span className="inline-block mr-2 rounded-md bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 text-xs font-black tracking-wide">PARCIAL</span>}{item.categoria?.startsWith('partial_')?item.titulo.replace('PARCIAL · ',''):item.titulo}</strong>
               <time className="text-[10px] font-semibold text-slate-500">{when(item.creadoEn)}</time>
             </div>
             <p className="mt-1 text-xs sm:text-sm leading-relaxed text-slate-600 break-words">{item.detalle}</p>
