@@ -1,4 +1,4 @@
-import { syncPush } from './_push-core.mjs';
+import { syncPush } from '../lib/push-core.mjs';
 
 // Todos los días a las 09:00 de Argentina (12:00 UTC).
 // Es un respaldo para los vencimientos de dos días antes y los cambios que
