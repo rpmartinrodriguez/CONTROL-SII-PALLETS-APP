@@ -25,6 +25,7 @@ const PresupuestosPDF = lazy(() => import('./pages/PresupuestosPDF'));
 const TransferenciaFirestore = lazy(() => import('./pages/TransferenciaFirestore'));
 import { conectarBasesOriginales } from './utils/conectarFirebaseOriginales';
 import { solicitarChequeoPush } from './utils/pushClient';
+import { abrirVisorImpresion } from './utils/visorImpresion';
 
 
 export default function App() {
@@ -1036,6 +1037,23 @@ export default function App() {
         const id=setTimeout(enviar,250);
         return ()=>clearTimeout(id);
     },[mode,focoPago]);
+
+    useEffect(()=>{
+        const recibirReporte=event=>{
+            if(event.origin!==window.location.origin ||
+               event.source!==pagosIframeRef.current?.contentWindow ||
+               event.data?.type!=='SII_PRINT_REPORT_V1')return;
+            const html=String(event.data.html||'').slice(0,350000);
+            if(!html)return;
+            abrirVisorImpresion({
+                titulo:String(event.data.titulo||'Reporte de Pagos').slice(0,110),
+                contenido:html,nombreArchivo:String(event.data.nombre||'Pagos').slice(0,100),
+                css:'body,.report-container{font-family:Arial,sans-serif;color:#1f2937;font-size:12px;line-height:1.5;background:#fff}h2{font-size:17px;color:#174f9b;margin-bottom:12px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{border-bottom:1px solid #dbe3ed;padding:7px;text-align:left;vertical-align:top}th{background:#eff6ff;font-weight:bold}.no-print,button,.close-modal{display:none!important}.amount{text-align:right}.modal-content,.modal-body{padding:8px;width:100%;box-shadow:none;border:0}'
+            });
+        };
+        window.addEventListener('message',recibirReporte);
+        return ()=>window.removeEventListener('message',recibirReporte);
+    },[]);
 
     // Abre el registro exacto desde el desglose de IVA, sin crear otra factura.
     const abrirFacturaDesdeFacturacion = (factura) => {
