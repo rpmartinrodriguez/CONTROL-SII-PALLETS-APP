@@ -1,44 +1,64 @@
-# SII PALLETS PRO — notificaciones Push y configuración
+# SII PALLETS PRO — Push automático por dispositivo (sin lista manual de UID)
 
-## Todo en el único Firebase PERSONAL
-Proyecto: `sii-pallets-app`. **No hay dos Firebase activos** para esta versión.
-- Cobros: `cobros_public_shared/main_list/items/{id}`.
-- Pagos tradicionales: `cheques_public_shared/main_list/items/{id}`.
-- Pagos Avanzados: `finanzas/cheques` (un documento con array `data`).
-- Bancos: `finanzas/bancos`.
-- Clientes y presupuestos PDF: `clientes_presupuestos_sii` e `historial_presupuestos_sii`.
+## Proyecto y alcance
 
-## Avisos implementados
-- Nuevo cobro registrado.
-- Nuevo pago registrado (tradicional o Pagos Avanzados).
-- Cobro marcado como pagado/saldado.
-- Pago marcado como pagado/saldado.
-- Cobro o pago con fecha de vencimiento EXACTAMENTE dos días después de la fecha argentina. Se muestra nombre, número y saldo pendiente.
-- No envía avisos por los datos históricos durante la inicialización del seguimiento.
-- Se detectan cambios al registrar movimientos desde la nueva app; revisión programada diaria para eventos omitidos/vencimientos. Si no se configuraron claves y dispositivos, no se envía nada.
+Todas las notificaciones utilizan **exclusivamente** el Firebase personal `sii-pallets-app`.
+La aplicación original y sus Firebase anteriores no se modifican.
 
-## Activación segura en Netlify personal (NO en el repositorio original)
-1. En Firebase Console del proyecto `sii-pallets-app` → Configuración → Cloud Messaging → Web Push certificates, generar una clave Web Push y copiar **solo la clave pública**.
-2. En Netlify personal → Environment variables, crear `VITE_SII_FCM_VAPID_PUBLIC` con esa clave pública. Es normal que el navegador la reciba.
-3. En Firebase Console del MISMO proyecto → Cuentas de servicio, generar un archivo JSON de cuenta de servicio. **Es secreto**, NO subirlo a GitHub ni enviarlo por chat.
-4. Guardar todo el contenido JSON únicamente en la variable **privada de servidor** de Netlify `SII_FIREBASE_SERVICE_ACCOUNT_JSON`. Debe tener `project_id: sii-pallets-app`.
-5. Abrir la app nueva → Notificaciones push → copiar el UID de la sesión anónima de ese dispositivo. Crear variable de Netlify `SII_PUSH_ALLOWED_UIDS` con ese UID. Para varios dispositivos, separarlos con comas.
-6. Desplegar después de configurar las variables de entorno. No pasar `SII_FIREBASE_SERVICE_ACCOUNT_JSON` a ninguna variable VITE_ ni al código frontend.
-7. Abrir la app desde HTTPS; en iPhone instalar la PWA desde Compartir → Agregar a inicio. Tocar **Activar notificaciones** y aceptar el permiso. Repetir por cada dispositivo autorizado.
-8. Pulsar **Revisar movimientos** una vez al activar: inicializa la referencia de datos existentes sin mandar miles de avisos históricos.
-9. Crear un movimiento controlado o cambiar su estado y comprobar recepción. Los avisos dependen de que el dispositivo y las credenciales estén autorizados y del soporte Web Push de su navegador.
-10. La función programada `push-tick` corre `0 12 * * *` en UTC (09:00 Argentina) desde el deploy de PRODUCCIÓN. Las vistas previas de Netlify NO ejecutan tareas programadas automáticamente.
+## Funcionamiento universal
 
-## Seguridad y costos
-- No hay nueva cuenta de usuario o contraseña en el frontend: se usa Firebase Anonymous, pero `SII_PUSH_ALLOWED_UIDS` en servidor evita registrar dispositivos no autorizados.
-- **Anonymous no restringe por sí solo quién puede escribir movimientos a Firestore.** Revisar reglas de seguridad antes de publicar cambios: los UID del usuario autorizado deben tener permisos explícitos.
-- Cloud Messaging requiere Web Push/VAPID, service worker y HTTPS. El envío automático de notificaciones requiere el Admin SDK de servidor y su credencial privada.
-- Las funciones programadas de Netlify se ofrecen en todos los planes, sujetas a sus límites. Las lecturas y escrituras de Firestore continúan sujetas a cuotas Spark.
-- El servidor lee las rutas mencionadas y guarda estados auxiliares en `sii_push_snapshot`, `sii_push_devices` y `sii_push_delivered`; nunca consulta Firebase original.
-- Para evitar duplicados, cada aviso se registra por un ID lógico. El primer escaneo establece referencias de comparación y no envía avisos masivos sobre los documentos migrados.
+- El usuario abre **Notificaciones push** en la app y presiona **Activar notificaciones**.
+- El navegador solicita permiso (en iPhone debe ser una PWA instalada en inicio).
+- La app obtiene el token FCM de **ese equipo**.
+- La función segura de Netlify verifica el ID token de Firebase de la sesión, y guarda o actualiza automáticamente en Firestore `sii_push_devices/{SHA256(token)}`:
+  - Token FCM del dispositivo, UID Firebase actual, dispositivo/plataforma, navegador, fecha de alta y última actualización, estado habilitado.
+- La lista de destinatarios se obtiene automáticamente de `sii_push_devices`, no de variables manuales.
+- Si el usuario vuelve a abrir la app y previamente aceptó, la PWA renueva el registro automáticamente sin volver a pedir el permiso.
+- Si toca **Desactivar en este equipo**, se desregistra y se elimina el token FCM local.
+- Cada equipo puede activarse o desactivarse de manera independiente. **No se copia ningún UID**.
 
-## Límites técnicos
-- El cambio en el frontend dispara una comprobación del servidor al guardar, pero no garantiza entrega instantánea si el dispositivo está sin red, sin permiso, o el proveedor Push retrasa la recepción.
-- Las operaciones de fuera de la nueva app solo se observan durante la verificación programada; no hay trigger de Firestore Cloud Functions.
-- Documentos masivos pueden agotar la cuota gratuita de Firestore o el límite temporal de Netlify; revisar consumos según volumen real.
-- Las notificaciones de datos son un complemento; el sistema de cobros/pagos y la vista de vencimientos siguen siendo la fuente operativa principal.
+## Variables de Netlify (proyecto PERSONAL únicamente)
+
+1. `VITE_SII_FCM_VAPID_PUBLIC` — clave pública Web Push de Firebase Cloud Messaging, en Build y Deploy Previews (luego Production).
+2. `SII_FIREBASE_SERVICE_ACCOUNT_JSON` — JSON completo de credencial privada Firebase Admin SDK, solo **Functions** (nunca variable `VITE_`, nunca GitHub ni chat).
+3. `SII_PUSH_AUTO_ENROLLMENT` — **universal**, valor exacto `true` para permitir el registro automático en los dispositivos. No poner UID ni teléfonos. Scope Functions, habilitar por contexto Deploy Previews primero, Production solo cuando los controles de acceso estén listos.
+
+La vieja variable `SII_PUSH_ALLOWED_UIDS` **ya no se necesita y se puede eliminar de Netlify**. No se debe usar `SII_PUSH_AUTO_ENROLLMENT` como contraseña o mecanismo de identificación: es un interruptor del servidor.
+
+## IMPORTANTE: proteger antes de activar para producción
+
+**Firebase Authentication anónima NO identifica a empleados de SII PALLETS.** Cualquiera con acceso a la web puede crear una identidad anónima, presionar Activar push y solicitar recibir los datos financieros de los avisos. Las verificaciones de origen web y token de Firebase por sí solas no prueban que la persona esté autorizada.
+
+Antes de activar `SII_PUSH_AUTO_ENROLLMENT=true` en **Production**:
+- Restringir el acceso a la app a personal autorizado mediante un control de acceso real, o implementar roles/cuentas y reglas seguras en Firebase.
+- Revisar reglas de Firestore para impedir acceso a movimientos a visitantes anónimos ajenos a la empresa.
+- No tratar el interruptor universal como una autorización: si no existe acceso restringido a la app, no habilitarlo en producción.
+
+En la vista previa se debe trabajar con datos de prueba o en un entorno restringido. La vista previa está conectada a la base personal: los registros financieros pueden ser reales.
+
+## Configuración en Firebase
+
+1. Consola Firebase `sii-pallets-app` → Configuración de proyecto → Cloud Messaging → Web Push certificates → Generate Key Pair. Copiar la **clave pública VAPID** a `VITE_SII_FCM_VAPID_PUBLIC`.
+2. Configuración del proyecto → Cuentas de servicio → Firebase Admin SDK → Generar clave privada JSON (guardarla exclusivamente en el gestor seguro de Netlify).
+3. Habilitar Cloud Messaging API (HTTP v1) si corresponde; verificar permisos IAM.
+4. Tras modificar variables en Netlify, volver a desplegar.
+5. En la app: abrir Notificaciones push → Activar notificaciones → autorizar el permiso del navegador.
+6. Verificar en Firestore la colección `sii_push_devices`, que se crea automáticamente cuando se registra el primer dispositivo. No hay que crearla manualmente.
+
+## Verificación
+
+1. Abrir la app desde un equipo autorizado. Tocar Activar notificaciones.
+2. Revisar que aparezca **Push activo en este equipo**. En Firebase, confirmar un documento nuevo en `sii_push_devices`.
+3. Entrar desde otro equipo autorizado y repetir. Deben aparecer dos documentos (tokens) diferentes.
+4. Tocar **Revisar movimientos y avisos** para inicializar la referencia. Esto no crea un evento falso ni garantiza un push inmediato.
+5. Realizar un movimiento controlado, verificar llegada de avisos y dejar el entorno sin datos de prueba. No generar cobros reales ficticios.
+6. Al desactivar, confirmar que ese token desaparezca del listado.
+
+## Automatización de avisos y advertencias
+
+- Cobros, pagos tradicionales y Pagos Avanzados comparten `sii-pallets-app`, aunque sus documentos internos tienen distintas estructuras.
+- Se detectan movimientos nuevos, pagos/cobros saldados o eliminados y vencimientos en dos días.
+- Función programada `push-tick`: 12:00 UTC (09:00 de Argentina), en producción.
+- Cloud Messaging y los navegadores no garantizan entrega inmediata. Un equipo puede no tener permiso, conexión o estar en modo restringido.
+- Las funciones Netlify/FCM y las operaciones Firestore están sujetas a cuotas; no se promete costo cero en cualquier volumen.
+- `SII_PUSH_AUTO_ENROLLMENT=false` (o ausente) detiene nuevos registros y excluye destinatarios en el motor push.
