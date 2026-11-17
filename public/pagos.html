@@ -1463,6 +1463,19 @@
             },window.location.origin);
         };
 
+        // Abrir un pago desde el ojito de la campanita del panel SII PRO.
+        window.addEventListener('message', function(event) {
+            if(event.origin!==window.location.origin || event.source!==window.parent ||
+               event.data?.type!=='SII_FOCUS_PAYMENT_V1') return;
+            const q=String(event.data.text||'').slice(0,100);
+            if(!q)return;
+            const input=document.getElementById('search-nombre');
+            if(!input)return;
+            input.value=q;
+            input.dispatchEvent(new Event('input',{bubbles:true}));
+            input.focus();
+        });
+
         window.addEventListener('message', function(event) {
             if (event.origin !== window.location.origin || event.source !== window.parent ||
                 event.data?.type !== 'SII_CATEGORIAS_EXPORT_RESULT_V1') return;
