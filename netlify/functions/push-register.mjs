@@ -1,4 +1,4 @@
-import { firebaseAdmin, verifyAuthorized, jsonResponse, sha } from './_push-core.mjs';
+import { firebaseAdmin, verifyAuthorized, jsonResponse, sha } from '../lib/push-core.mjs';
 import { FieldValue } from 'firebase-admin/firestore';
 
 export default async function handler(request) {
