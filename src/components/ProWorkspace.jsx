@@ -54,7 +54,7 @@ export default function ProWorkspace({mode,onNavigate,collectItems,payItems,pago
   return <>
     <aside className="sii-pro-sidebar hidden md:flex" aria-label="Secciones de la aplicación">
       <div className="sii-pro-brand">
-        <img src="/logo.png" alt="Logo SII PALLETS" className="w-12 h-12 rounded-2xl object-contain bg-white p-1"/>
+        <img src="/app-icon.svg" alt="Logo SII PALLETS" className="w-12 h-12 rounded-2xl object-contain bg-white p-1"/>
         <div className="min-w-0">
           <strong className="text-base block tracking-wide">SII PALLETS</strong>
           <small className="text-[10px] uppercase tracking-[.24em] text-slate-400">Control inteligente</small>
@@ -73,7 +73,7 @@ export default function ProWorkspace({mode,onNavigate,collectItems,payItems,pago
     </aside>
     <div className="sii-pro-topline">
       <div className="flex items-center gap-3 min-w-0">
-        <img src="/logo.png" alt="" className="md:hidden rounded-xl bg-white p-1 h-10 w-10 object-contain"/>
+        <img src="/app-icon.svg" alt="" className="md:hidden rounded-xl bg-white p-1 h-10 w-10 object-contain"/>
         <div className="min-w-0"><span className="sii-pro-eyebrow">SII PALLETS / SISTEMA OPERATIVO</span><p className="text-sm font-black tracking-wide text-slate-900 md:text-base truncate">Panel de operaciones</p></div>
       </div>
       <div className="flex items-center gap-2">

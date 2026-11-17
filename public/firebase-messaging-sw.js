@@ -13,7 +13,7 @@ firebase.messaging().onBackgroundMessage(payload=>{
   const title=payload.data?.title||'SII PALLETS';
   const body=payload.data?.body||'Hay un movimiento nuevo.';
   self.registration.showNotification(title,{
-    body,icon:'/logo.png',badge:'/logo.png',
+    body,icon:'/app-icon-192.png',badge:'/app-icon-192.png',
     data:{url:payload.data?.url||'/'},tag:'sii-'+(payload.data?.eventId||payload.data?.category||'movimiento')
   });
 });
