@@ -204,7 +204,7 @@ export default function Movimientos({
                         >
                             <span className={`text-[10px] font-bold text-${filter.color}-600 uppercase`}>{filter.label}</span>
                             <span className="text-lg font-black text-gray-800 leading-tight">{filter.data.count}</span>
-                            <span className="text-[9px] text-gray-500 truncate w-full">{formatMoney(filter.data.total)}</span>
+                            <span className="text-[clamp(9px,2.4vw,12px)] leading-tight font-semibold text-slate-600 w-full tabular-nums break-words">{formatMoney(filter.data.total)}</span>
                             {activeFilter === filter.id && (
                                 <div className={`absolute -bottom-2 w-3 h-3 bg-${filter.color}-500 rotate-45 border-r border-b border-white`}></div>
                             )}
