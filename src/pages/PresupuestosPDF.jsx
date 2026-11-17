@@ -47,6 +47,16 @@ export default function PresupuestosPDF() {
   const [mostrarGuardados,setMostrarGuardados]=useState(false);
   const [clienteGuardadoAbierto,setClienteGuardadoAbierto]=useState('');
   const [preciosParaRevisar,setPreciosParaRevisar]=useState([]);
+  // Impide que una actualización de la PWA borre un presupuesto sin emitir.
+  const borradorSinGuardar=useMemo(()=>{
+    const tieneDatos=Boolean(quote.cliente.razonSocial?.trim()||quote.nota?.trim()||
+      quote.items.some(i=>i.descripcion?.trim()||i.codigo?.trim()||String(i.precioUnitario||'').trim()));
+    return tieneDatos && guardadoVersion!==JSON.stringify(quote);
+  },[quote,guardadoVersion]);
+  useEffect(()=>{
+    window.__siiBudgetDraftDirty=Boolean(borradorSinGuardar);
+    return ()=>{window.__siiBudgetDraftDirty=false;};
+  },[borradorSinGuardar]);
   useEffect(()=>{
     const unsubClientes=onSnapshot(collection(db,'clientes_presupuestos_sii'),snap=>{
       setClientes(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.razonSocial||'').localeCompare(String(b.razonSocial||''))));
@@ -243,6 +253,17 @@ export default function PresupuestosPDF() {
     setNumeroAutomatico(true);setEditandoNumero('');setGuardadoVersion('');
     setQuote({...initial(),numero:numeroCotizacion(n)});
     setError('');setNotice('Nuevo presupuesto listo.');
+  };
+  const cancelarPresupuesto=()=>{
+    if(envioEnCurso.current)return;
+    if(borradorSinGuardar && !window.confirm('¿Cancelar este presupuesto y descartar todos los cambios sin guardar?'))return;
+    const n=proximoNumeroDisponible(historial,COTIZACION_INICIO,getSequence());
+    setQuote({...initial(),numero:numeroCotizacion(n)});
+    setNumeroAutomatico(true);
+    setEditandoNumero('');setGuardadoVersion('');setClienteId('');
+    setPreciosParaRevisar([]);setSugerencias(false);setError('');
+    setNotice('Presupuesto cancelado. El formulario quedó limpio y no se guardó nada.');
+    window.__siiBudgetDraftDirty=false;
   };
   const run=async(action)=>{
     if(envioEnCurso.current)return;
@@ -491,7 +512,12 @@ export default function PresupuestosPDF() {
             <button type="button" onClick={()=>run('download')} disabled={!!busy} className="rounded-xl px-4 py-3 bg-blue-800 hover:bg-blue-900 disabled:opacity-40 text-white font-bold text-sm">{busy==='download'?'Generando…':'Descargar PDF'}</button>
             <button type="button" onClick={()=>run('share')} disabled={!!busy} className="rounded-xl px-4 py-3 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white font-bold text-sm">{busy==='share'?'Preparando…':'Compartir PDF'}</button>
           </div>
-          <p className="text-[11px] text-slate-500 mt-3">En celulares compatibles, «Compartir PDF» abre el menú del dispositivo para elegir WhatsApp, correo u otra app. Si no admite adjuntar archivos, descargá el PDF y adjuntalo manualmente.</p>
+          <button type="button" disabled={!!busy} onClick={cancelarPresupuesto}
+            className="w-full mt-3 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 px-4 py-3 text-sm font-bold disabled:opacity-50">
+            Cancelar presupuesto
+          </button>
+          <p className="text-[11px] text-slate-500 mt-3">Cancelar limpia el formulario sin guardar. Si estabas editando un presupuesto anterior, se conserva su última versión guardada.</p>
+          <p className="text-[11px] text-slate-500 mt-2">En celulares compatibles, «Compartir PDF» abre el menú del dispositivo para elegir WhatsApp, correo u otra app. Si no admite adjuntar archivos, descargá el PDF y adjuntalo manualmente.</p>
         </div>
       </section>
 
