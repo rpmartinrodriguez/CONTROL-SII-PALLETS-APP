@@ -5,7 +5,7 @@ export default async function handler(request) {
   if(request.method!=='POST')return jsonResponse(405,{error:'Método no permitido'});
   try {
     // No se permite registro desde otros orígenes.
-    if(request.headers.get('origin')!==new URL(request.url).origin)return jsonResponse(403,{error:'Origen no autorizado'});
+    if(request.headers.get('origin') && request.headers.get('origin')!==new URL(request.url).origin)return jsonResponse(403,{error:'Origen no autorizado'});
     const uid=await verifyAuthorized(request);
     const input=await request.json();
     if(!input||typeof input.token!=='string'||input.token.length<30||input.token.length>5000)return jsonResponse(400,{error:'Token de dispositivo inválido'});
