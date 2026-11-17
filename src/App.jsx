@@ -27,7 +27,7 @@ import { conectarBasesOriginales } from './utils/conectarFirebaseOriginales';
 
 export default function App() {
     const [mode, setMode] = useState(() => (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('migracion') === '1' ? 'migration' : 'pay')); // Inicia en la nueva pestaña de Pagos
-    const pagosAvanzados = usePagosReales(true); // Solo lectura de la fuente real de Pagos
+    const pagosAvanzados = usePagosReales(mode === 'balance'); // Solo escucha la fuente de Pagos al consultar Balance
     const pagosIframeRef = useRef(null);
     const [user, setUser] = useState(null); 
     const [payItems, setPayItems] = useState([]); 
