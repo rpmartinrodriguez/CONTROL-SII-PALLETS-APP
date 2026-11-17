@@ -246,7 +246,15 @@ export default function PresupuestosPDF() {
               <div className="min-w-0">
                 <strong className="block text-sm text-slate-800">{p.numero||'Sin número'}</strong>
                 <span className="block text-xs text-slate-500 mt-1">{fechaAR(p.fecha)} · {p.items?.length||0} ítem(s) · {p.cuenta==='2'?'Cuenta 2':'Cuenta 1'}</span>
-                <strong className="block text-sm text-blue-800 mt-1">{peso(Number(p.totalCentavos)||0)}</strong>
+                <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Artículos presupuestados">
+                  {(p.items||[]).length>0 ? p.items.map((item,index)=>
+                    <span key={item.id||index} className="inline-flex max-w-full items-start gap-1.5 rounded-lg border border-blue-100 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                      <span className="shrink-0 text-blue-700">{item.cantidad||1} ×</span>
+                      <span className="break-words">{item.descripcion||'Artículo sin descripción'}</span>
+                    </span>
+                  ) : <span className="text-xs text-slate-400">Sin artículos registrados</span>}
+                </div>
+                <strong className="block text-sm text-blue-800 mt-2">{peso(Number(p.totalCentavos)||0)}</strong>
               </div>
               <button type="button" onClick={()=>copiarGuardado(p)}
                 className="sii-pro-button-primary w-full sm:w-auto shrink-0">Copiar presupuesto</button>
