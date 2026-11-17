@@ -1,0 +1,9 @@
+# Sólo para ejecución local. NO publicar claves privadas ni respaldos financieros.
+migration/node_modules/
+migration/keys/
+migration/backups/
+*.local.json
+*.service-account.json
+.env
+.env.*
+.DS_Store
