@@ -29,7 +29,14 @@ import { abrirVisorImpresion } from './utils/visorImpresion';
 
 
 export default function App() {
-    const [mode, setMode] = useState(() => (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('migracion') === '1' ? 'migration' : 'collect')); // Inicia en la nueva pestaña de Pagos
+    const [mode, setMode] = useState(() => (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('migracion') === '1' ? 'migration' : 'collect'));
+    const [sidebarMinimizado,setSidebarMinimizado]=useState(()=>{
+        try{return window.localStorage.getItem('sii-sidebar-minimizado-v1')==='true';}
+        catch{return false;}
+    });
+    useEffect(()=>{
+        try{window.localStorage.setItem('sii-sidebar-minimizado-v1',String(sidebarMinimizado));}catch{}
+    },[sidebarMinimizado]); // Inicia en la nueva pestaña de Pagos
     const pagosAvanzados = usePagosReales(true); // Indicadores de Pagos Avanzados y Balance comparten un único lector
     const pagosIframeRef = useRef(null);
     const [user, setUser] = useState(null); 
@@ -1072,10 +1079,11 @@ export default function App() {
 
     // EL TRUCO 100% PANTALLA COMPLETA: w-full min-h-screen sin límites
     return (
-        <div className="sii-pro-app w-full min-h-screen relative pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-8">
+        <div className={'sii-pro-app w-full min-h-screen relative pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-8'+(sidebarMinimizado?' sii-sidebar-collapsed':'')}>
             <ProWorkspace mode={mode} onNavigate={changeMode} onOpenNotification={abrirDesdeNotificacion}
               collectItems={collectItems} payItems={payItems} pagosAvanzados={pagosAvanzados}
-              searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
+              searchTerm={searchTerm} setSearchTerm={setSearchTerm}
+              sidebarMinimizado={sidebarMinimizado} setSidebarMinimizado={setSidebarMinimizado} />
             {/* Contenedor sin márgenes estrictos */}
             <div className="sii-pro-main">
                 
