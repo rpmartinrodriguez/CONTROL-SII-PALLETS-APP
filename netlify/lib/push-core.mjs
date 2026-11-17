@@ -94,7 +94,7 @@ async function deliver(db,messaging,event,devices) {
       const group=tokens.slice(i,i+500);
       const out=await messaging.sendEachForMulticast({
         tokens:group,
-        data:{title:event.title,body:event.body,url:'/',category:event.category}
+        data:{title:event.title,body:event.body,url:'/',category:event.category,eventId:sha(event.id).slice(0,20)}
       });
       sent+=out.successCount;
       for(let j=0;j<out.responses.length;j++){
