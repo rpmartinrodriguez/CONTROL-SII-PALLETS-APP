@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "npm test && npm run check:push && vite build",
     "preview": "vite preview",
-    "test": "node --test src/utils/balanceSemanal.test.mjs src/utils/resumenCuentasCobros.test.mjs src/utils/presupuestosSii.test.mjs src/utils/migracionFirestore.test.mjs src/utils/clientesPresupuesto.test.mjs",
+    "test": "node --test src/utils/balanceSemanal.test.mjs src/utils/resumenCuentasCobros.test.mjs src/utils/presupuestosSii.test.mjs src/utils/migracionFirestore.test.mjs src/utils/clientesPresupuesto.test.mjs src/utils/pushEnrollment.test.mjs",
     "check:push": "node --check netlify/lib/push-core.mjs && node --check netlify/functions/push-register.mjs && node --check netlify/functions/push-check.mjs && node --check netlify/functions/push-tick.mjs"
   },
   "dependencies": {
