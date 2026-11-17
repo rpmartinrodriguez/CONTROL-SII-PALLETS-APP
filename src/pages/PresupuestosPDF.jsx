@@ -362,8 +362,8 @@ export default function PresupuestosPDF() {
                   <p><strong>Compr. Nro.:</strong> {quote.numero}</p>
                   <p><strong>Fecha de Emisión:</strong> {fechaAR(quote.fecha)}</p>
                   <p><strong>CUIT:</strong> {EMISOR.cuit}</p>
-                  <p><strong>Ingresos Brutos:</strong></p>
-                  <p><strong>Fecha de Inicio de Actividades:</strong> / /</p>
+                  <p><strong>Ingresos Brutos:</strong> {EMISOR.ingresosBrutos}</p>
+                  <p><strong>Fecha de Inicio de Actividades:</strong> {EMISOR.inicioActividades}</p>
                 </div>
               </div>
             </div>

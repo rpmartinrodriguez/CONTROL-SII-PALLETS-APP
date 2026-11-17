@@ -6,7 +6,9 @@ export const EMISOR = Object.freeze({
   localidad: 'GUALEGUAYCHÚ',
   iva: 'IVA Responsable Inscripto',
   cuit: '20257113543',
-  telefono: '344560271',
+  telefono: '3446-560271',
+  ingresosBrutos: '20-25711554-3',
+  inicioActividades: '01/09/2022',
   marca: 'SII PALLETS',
   descripcion: 'SOLUCIONES INDUSTRIALES INTEGRALES EN PALLETS'
 });
