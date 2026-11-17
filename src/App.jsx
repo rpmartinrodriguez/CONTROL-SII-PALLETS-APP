@@ -1022,6 +1022,10 @@ export default function App() {
     // La campanita lleva a la sección y, cuando hay una referencia disponible,
     // la busca en el listado correspondiente. No modifica registros financieros.
     const abrirDesdeNotificacion = (aviso) => {
+        if(aviso?.categoria === 'new_quote' || aviso?.tipo === 'presupuesto'){
+            changeMode('quotesPDF');
+            return;
+        }
         if(aviso?.tipo === 'cobro' || aviso?.categoria?.includes('collect')){
             changeMode('collect');
             setActiveFilter('all');
