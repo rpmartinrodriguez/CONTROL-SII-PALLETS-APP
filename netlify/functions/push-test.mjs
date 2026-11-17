@@ -53,6 +53,31 @@ export default async function handler(request) {
       code: 'FIRESTORE_QUOTA',
       error: 'Firebase alcanzó un límite temporal de operaciones. No se pudo probar el envío push. Revisá Firestore → Uso.'
     });
-    return jsonResponse(400, { error: err?.message || 'No se pudo realizar la prueba.' });
+    const code=String(err?.code||'');
+    const detail=String(err?.message||'');
+    if (/inscripción automática de push está desactivada/i.test(detail)) return jsonResponse(503, {
+      code:'PUSH_DISABLED',
+      error:'El servicio push está deshabilitado en Netlify. Revisar la variable SII_PUSH_AUTO_ENROLLMENT=true y publicar nuevamente. No habilitarlo sin restringir previamente el acceso a la app.'
+    });
+    if (/Falta SII_FIREBASE_SERVICE_ACCOUNT_JSON|Credencial de un proyecto distinto|Unexpected token.*JSON/i.test(detail)) return jsonResponse(503, {
+      code:'FIREBASE_ADMIN_CONFIG',
+      error:'La credencial de Firebase Admin falta o no corresponde al proyecto sii-pallets-app. Revisar SII_FIREBASE_SERVICE_ACCOUNT_JSON en Netlify.'
+    });
+    if (/dispositivo no está registrado/i.test(detail)) return jsonResponse(409, {
+      code:'PUSH_DEVICE_NOT_REGISTERED',
+      error:'El dispositivo ya no figura como habilitado en Firebase. Volvé a activar las notificaciones.'
+    });
+    if (/20 segundos/.test(detail)) return jsonResponse(429, {code:'PUSH_TEST_COOLDOWN',error:detail});
+    if (code.startsWith('messaging/') || /registration-token-not-registered|Requested entity was not found|SENDER_ID_MISMATCH/i.test(detail)) return jsonResponse(502, {
+      code:'FCM_SEND_FAILED',
+      error:'Firebase Cloud Messaging rechazó el envío ('+(code||'token o credenciales')+'). Revisar los dispositivos registrados y la configuración del proyecto.'
+    });
+    if (/token|sesión|permission|authorization|credential/i.test(detail)) return jsonResponse(403, {
+      code:'PUSH_AUTH_FAILED',error:'Firebase no pudo validar la sesión o las credenciales del servicio. '+detail.slice(0,160)
+    });
+    return jsonResponse(500, {
+      code:'PUSH_TEST_SERVER_ERROR',
+      error:'El servidor no pudo completar la prueba push. Revisar Netlify → Functions → push-test → Logs. '+detail.slice(0,180)
+    });
   }
 }
