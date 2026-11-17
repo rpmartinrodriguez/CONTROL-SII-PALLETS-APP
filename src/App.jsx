@@ -28,7 +28,7 @@ import { solicitarChequeoPush } from './utils/pushClient';
 
 
 export default function App() {
-    const [mode, setMode] = useState(() => (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('migracion') === '1' ? 'migration' : 'pay')); // Inicia en la nueva pestaña de Pagos
+    const [mode, setMode] = useState(() => (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('migracion') === '1' ? 'migration' : 'collect')); // Inicia en la nueva pestaña de Pagos
     const pagosAvanzados = usePagosReales(true); // Indicadores de Pagos Avanzados y Balance comparten un único lector
     const pagosIframeRef = useRef(null);
     const [user, setUser] = useState(null); 
@@ -65,6 +65,7 @@ export default function App() {
     const [expandedGroups, setExpandedGroups] = useState({});
     const [searchTerm, setSearchTerm] = useState("");
     const [showNotifPanel, setShowNotifPanel] = useState(false);
+    const [focoPago, setFocoPago] = useState('');
     const [notifPermission, setNotifPermission] = useState(typeof Notification !== 'undefined' ? Notification.permission : 'default');
     const [selectedDateFilter, setSelectedDateFilter] = useState(null);
     const [showCalendar, setShowCalendar] = useState(false);
@@ -1010,6 +1011,32 @@ export default function App() {
         if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'auto' });
     };
 
+    // La campanita lleva a la sección y, cuando hay una referencia disponible,
+    // la busca en el listado correspondiente. No modifica registros financieros.
+    const abrirDesdeNotificacion = (aviso) => {
+        if(aviso?.tipo === 'cobro' || aviso?.categoria?.includes('collect')){
+            changeMode('collect');
+            setActiveFilter('all');
+            setSelectedDateFilter(null);
+            const item=collectItems.find(x=>String(x.id)===String(aviso.movimientoId||''));
+            const pista=item?.number || item?.payee || (aviso.detalle||'').split(' · ')[0];
+            setSearchTerm(String(pista||'').slice(0,100));
+        } else {
+            changeMode('pay');
+            const pista=(aviso.detalle||'').split(' · ')[0]||aviso.movimientoId||'';
+            setFocoPago(String(pista).slice(0,100));
+        }
+    };
+
+    useEffect(()=>{
+        if(mode!=='pay'||!focoPago)return undefined;
+        const enviar=()=>pagosIframeRef.current?.contentWindow?.postMessage({
+            type:'SII_FOCUS_PAYMENT_V1',text:focoPago
+        },window.location.origin);
+        const id=setTimeout(enviar,250);
+        return ()=>clearTimeout(id);
+    },[mode,focoPago]);
+
     // Abre el registro exacto desde el desglose de IVA, sin crear otra factura.
     const abrirFacturaDesdeFacturacion = (factura) => {
         changeMode('collect');
@@ -1028,8 +1055,8 @@ export default function App() {
     // EL TRUCO 100% PANTALLA COMPLETA: w-full min-h-screen sin límites
     return (
         <div className="sii-pro-app w-full min-h-screen relative pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-8">
-            <ProWorkspace mode={mode} onNavigate={changeMode}
-              collectItems={collectItems} payItems={payItems} pagosAvanzados={pagosAvanzados} alerts={alerts}
+            <ProWorkspace mode={mode} onNavigate={changeMode} onOpenNotification={abrirDesdeNotificacion}
+              collectItems={collectItems} payItems={payItems} pagosAvanzados={pagosAvanzados}
               searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
             {/* Contenedor sin márgenes estrictos */}
             <div className="sii-pro-main">
@@ -1038,7 +1065,7 @@ export default function App() {
                 {/* PORTAL A PANTALLA COMPLETA: APLICACIÓN AVANZADA DE PAGOS */}
                 {mode === 'pay' && (
                     <div className="w-full h-[calc(100dvh-190px)] min-h-[320px] md:h-[calc(100vh-140px)] bg-white sm:rounded-2xl shadow-xl overflow-hidden animate-fade-in border-0 sm:border border-gray-200">
-                        <iframe ref={pagosIframeRef} src="/pagos.html" title="Control de Pagos Avanzado — prueba de categorías" className="w-full h-full border-none outline-none bg-[#f8fafc]"></iframe>
+                        <iframe ref={pagosIframeRef} src="/pagos.html" title="Control de Pagos Avanzado" onLoad={()=>{if(focoPago)pagosIframeRef.current?.contentWindow?.postMessage({type:'SII_FOCUS_PAYMENT_V1',text:focoPago},window.location.origin);}} className="w-full h-full border-none outline-none bg-[#f8fafc]"></iframe>
                     </div>
                 )}
 
