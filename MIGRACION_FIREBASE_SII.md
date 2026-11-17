@@ -1,69 +1,41 @@
-# Migración de Firebase de SII PALLETS — Plan de corte seguro
+# SII PALLETS — Migración desde la aplicación (ZIP, sin Blaze)
 
-**Estado:** configuración del nuevo Firebase aplicada SOLO a esta rama de pruebas; las bases originales y `main` no se han modificado. No se han exportado ni importado documentos todavía.
-**Repositorio de destino:** `rpmartinrodriguez/CONTROL-SII-PALLETS-APP`.
-**Rama de trabajo:** `feature/migracion-firebase-sii-20261116`.
-**Proyectos de origen:** `controlcheque-19226`, `listapagos`.
-**Proyecto destino:** `sii-pallets-app` (unifica documentos de ambas bases anteriores, conservando rutas e IDs).
+## Proyectos
+- Original principal: controlcheque-19226.
+- Original Pagos Avanzados: listapagos.
+- Firebase nuevo personal: sii-pallets-app.
+- Repo original: martinrodriguez-dotcom/ControlCheque.
+- Repo personal: rpmartinrodriguez/CONTROL-SII-PALLETS-APP.
 
-## Inventario mínimo detectado en código
+## Configuración de acceso administrativo (OBLIGATORIA)
+1. Abrir Firebase Console, proyecto controlcheque-19226 → Authentication → Sign-in method: activar Email/Password.
+2. En Authentication → Users crear usuario administrador por correo y contraseña y copiar su UID.
+3. En Netlify ORIGINAL configurar variable de entorno VITE_SII_MIGRATION_ADMIN_UID con ese UID. Publicar de nuevo.
+4. Repetir los pasos para el proyecto nuevo sii-pallets-app y su Netlify PERSONAL. Los UID son diferentes aunque el correo sea idéntico.
+5. En la pestaña MIGRACIÓN iniciar sesión con ese usuario. La sesión es temporal y aislada del login anónimo de la app.
+6. Las reglas Firestore deben permitir las lecturas y escrituras del operador autorizado. Nunca usar reglas públicas (allow read, write: if true). La restricción por UID en el cliente es solo de interfaz; la seguridad verdadera exige reglas Firestore.
 
-Origen principal `controlcheque-19226`:
-- `cheques_public_shared/main_list/items/{id}`
-- `cobros_public_shared/main_list/items/{id}`
-- `cartera_public_shared/main_list/items/{id}`
-- `gastos_public_shared/main_list/items/{id}` (aunque menú oculto)
-- `caja_public_shared/main_list/items/{id}`
-- `bancos_sii/main_list/items/{id}`
-- `costos_madres_sii/main_list/items/{id}`
-- `pallets_templates_sii/main_list/items/{id}`
-- `presupuestos_sii/main_list/items/{id}`
-- `config_sii/general`
-- `config_sii/iva_YYYY-MM` (un documento por mes creado desde Facturación).
+## Respaldo original
+1. Abrir app ORIGINAL → menú MIGRACIÓN → iniciar sesión → Descargar respaldo completo (ZIP).
+2. Se exportan todas las rutas conocidas usadas por ControlCheque y finanzas/* del proyecto listapagos.
+3. ZIP: manifiesto, dos archivos JSON con documentos de origen y sumas SHA256; guardar PRIVADO y fuera de GitHub.
+4. Si alguna consulta falla, no se genera un ZIP parcial.
 
-Origen de Pagos `listapagos`:
-- `finanzas/cheques` (documento cuya propiedad `data` contiene array de pagos).
-- `finanzas/bancos` (documento cuya propiedad `data` contiene el objeto de bancos).
+## Importación personal
+1. Confirmar que la app nueva apunta a sii-pallets-app (en rama de migración). No cargar movimientos reales antes del corte.
+2. NUEVA → MIGRACIÓN → iniciar sesión → seleccionar ZIP → Comparar con la base nueva (no escribe).
+3. Examinar documentos ausentes, idénticos y en conflicto. Con conflictos, se bloquea la importación y no se sobreescribe.
+4. Confirmar, escribir IMPORTAR y pulsar Restaurar documentos faltantes. Importa hasta 1500 por ejecución; repetir con el mismo archivo para continuar.
+5. El proceso vuelve a leer los documentos y comprobar los valores, IDs y rutas.
+6. Comparar totales de Pagos, Caja, Cobros, Balance, bancos, Cartera, Facturación, Pallets y Presupuestos.
 
-Este inventario identifica solo rutas usadas explícitamente por la versión actual del código. **El respaldo debe cubrir la totalidad de las bases, incluyendo cualquier otra colección, documento o subcolección existente.**
+## Corte seguro
+- Mantener bases originales sin borrar. Antes del cambio final, suspender altas/modificaciones, descargar ZIP final y verificarlo.
+- Si un documento ya importado fue modificado después del primer ZIP, la herramienta detecta diferencia y se detiene, requiere conciliación específica.
+- No pasar a producción sin contar documentos, comparar saldos y revisar reglas de acceso.
 
-## Preparación
-
-1. No usar producción nueva para cargar movimientos de prueba: `main` sigue conectado a los Firebase de origen. La rama de pruebas está conectada únicamente al proyecto nuevo y vacío.
-2. **COMPLETADO:** `firebaseConfig` web entregado por el usuario y aplicado únicamente en la rama de migración (`src/firebase.js`, `src/hooks/usePagosReales.js`, `public/pagos.html`). No se publican contraseñas, tokens privados ni archivos de cuentas de servicio.
-3. Verificar que la base Cloud Firestore de destino esté creada y que Authentication > Sign-in method > Anonymous esté habilitado. En la rama de pruebas **Pagos ya inicia sesión anónima** antes de leer Firestore; revisar permisos y reglas. La autenticación anónima por sí sola **no impide acceso ajeno** a los datos comerciales: antes del corte a producción hay que definir una autorización real y reglas seguras.
-4. Determinar si los tres proyectos tienen facturación habilitada, para elegir el método de migración: export/import oficial vía Cloud Storage si usan Blaze, o export/import controlado conservando tipos Firestore y rutas si usan Spark. No activar reglas abiertas para facilitar la copia. Si hay Blaze y acceso IAM, la vía oficial es exportar la base completa de cada uno de los dos proyectos antiguos y luego importar ambos conjuntos al destino (las rutas no se superponen). El import de Firestore conserva IDs y sobreescribe los IDs existentes; por eso no usar destino con datos reales antes de respaldarlo.
-
-## Respaldo
-
-- Mantener copia externa de cada base antes de la importación.
-- Exportar todos los documentos y subcolecciones, IDs y tipos (Timestamp, GeoPoint, referencias, etc.) con sus rutas originales.
-- Conservar copia de reglas de Firestore e índices, que no se transfieren automáticamente mediante el export/import de datos.
-- Si existen usuarios de Authentication no anónimos, migrarlos por separado; Firestore no exporta cuentas Authentication.
-- Comprobar número de documentos por colección y totales de Cobros, Caja, Pagos y saldos de bancos. Guardar resumen de verificación.
-
-## Importación a base unificada
-
-- Ejecutar primero la migración en entorno de prueba, nunca directamente en el sitio de producción.
-- Importar colecciones/documentos del origen principal con sus mismas rutas e IDs.
-- Importar `finanzas/cheques` y `finanzas/bancos` del segundo origen conservando su estructura.
-- Detener escrituras de prueba y evitar sobrescrituras del destino antes de validar.
-- La copia de prueba de Pagos tiene desactivada la creación automática de datos por defecto si `finanzas` está vacía.
-- Actualizar solo en la rama de migración la config principal (`src/firebase.js`), la del lector de Pagos (`src/hooks/usePagosReales.js`) y la del iframe (`public/pagos.html`).
-- Comparar registros, IDs, totales, reglas de acceso, periodos de IVA y estados reales, incluido balance sábado-viernes. No cortar hasta lograr conciliación.
-
-## Corte a producción
-
-- Acordar ventana sin carga de movimientos en origen y realizar respaldo final de cualquier dato nuevo.
-- Validar la actualización final en base destino y revisar los enlaces de Netlify personal.
-- Publicar versión nueva; conservar origen y respaldos sin borrar hasta estabilizar.
-- Presupuestos PDF tiene correlativo **local en cada dispositivo** (localStorage), no almacenado en Firestore; tratarlo como función aparte y no asumir que migrar Firestore trasladará ese número.
-
-## Decisiones y comprobaciones previas solicitadas (16/11/2026)
-
-- Consultar al usuario si tiene acceso administrativo a los dos Firebase de origen (`controlcheque-19226` y `listapagos`).
-- Consultar si los proyectos de origen y destino usan **Spark** o **Blaze**; la exportación administrada oficial requiere **Blaze en origen y destino**.
-- Revisar si existen otras colecciones fuera del inventario (exportar la base completa, no solo las colecciones visibles en la app).
-- No instalar reglas `allow read, write: if true`, no publicar credenciales de Admin SDK ni claves privadas en GitHub o Netlify.
-- En caso de importar usando Cloud Storage: preparar permisos IAM del proyecto destino sobre los buckets de exportación, revisar ubicaciones y configurar índices, Authentication y reglas por separado.
-- Acordar periodo de corte sin escrituras en las aplicaciones antiguas, respaldo adicional y conciliación final de cantidades/saldos.
+## Limitaciones
+- El navegador no descubre colecciones desconocidas: verificar visualmente en Firebase Console que las rutas usadas por la app cubren los datos relevantes.
+- Authentication, Storage, reglas, índices, metadatos Firestore de creación/edición, localStorage y número local de Presupuestos PDF se respaldan aparte.
+- Se preservan los ID, rutas y valores Firestore con los tipos conocidos. No se borran datos ni se sobrescriben documentos distintos.
+- Las operaciones consumen cuotas gratuitas ordinarias de Spark; no requiere Blaze.
