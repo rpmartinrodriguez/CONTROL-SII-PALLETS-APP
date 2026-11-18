@@ -8,6 +8,7 @@ import { esperarServiceWorkerActivo } from '../utils/pushServiceWorker';
 const VAPID_PUBLICA = import.meta.env.VITE_SII_FCM_VAPID_PUBLIC || '';
 const OPT_IN = 'sii_pallets_push_opt_in_v2';
 const CONFIRMADO_EN = 'sii_pallets_push_confirmado_en_v1';
+const CONFIRMADO_UID = 'sii_pallets_push_confirmado_uid_v1';
 const CACHE_MS = 12 * 60 * 60 * 1000;
 const mensajeError = error => /registration failed|push service error|push service unavailable/i.test(String(error?.message||error))
   ? 'El navegador no pudo conectarse al servicio push del dispositivo (no es un error del registro de SII PALLETS en Firebase). Verificá conexión, actualizá Chrome y Servicios de Google Play en Android, desactivá VPN o ahorro de datos, y volvé a intentar. En iPhone, abrí la app instalada desde la pantalla de inicio, no desde una pestaña de Safari. Detalle técnico: '+String(error?.message||error)
@@ -95,14 +96,26 @@ async function registrar(token) {
   });
 }
 
+// Al salir de un equipo compartido se revoca el token antes de cerrar sesión.
+export async function desvincularPushDeEsteEquipo(){
+  if(typeof Notification==='undefined' || Notification.permission!=='granted' ||
+     localStorage.getItem(OPT_IN)!=='yes')return;
+  const token=await tokenDeEsteEquipo();
+  await llamarPush('push-register',{action:'unregister',token});
+  localStorage.removeItem(OPT_IN);
+  localStorage.removeItem(CONFIRMADO_EN);
+  localStorage.removeItem(CONFIRMADO_UID);
+}
+
 export default function PushControl({ cerrar }) {
-  const [sesion, setSesion] = useState(Boolean(auth.currentUser));
+  const [sesionUid, setSesionUid] = useState(auth.currentUser?.uid||'');
+  const sesion=Boolean(sesionUid);
   const [activado, setActivado] = useState(false);
   const [ocupado, setOcupado] = useState(false);
   const [estado, setEstado] = useState('');
   const [error, setError] = useState('');
 
-  useEffect(() => onAuthStateChanged(auth, user => setSesion(Boolean(user))), []);
+  useEffect(() => onAuthStateChanged(auth, user => setSesionUid(user?.uid||'')), []);
 
   useEffect(() => {
     if (!sesion || typeof Notification === 'undefined') return undefined;
@@ -110,10 +123,12 @@ export default function PushControl({ cerrar }) {
     // Evitar una lectura/escritura en Firestore cada vez que se abre el modal.
     // El estado se guarda SOLO después de un registro exitoso del servidor.
     const confirmado = Number(localStorage.getItem(CONFIRMADO_EN)||0);
-    if (confirmado > 0 && Date.now()-confirmado < CACHE_MS) {
+    const mismoUsuario=localStorage.getItem(CONFIRMADO_UID)===sesionUid;
+    if (mismoUsuario && confirmado > 0 && Date.now()-confirmado < CACHE_MS) {
       setActivado(true);
       return undefined;
     }
+    setActivado(false);
     let cancelado = false;
     (async () => {
       try {
@@ -121,6 +136,7 @@ export default function PushControl({ cerrar }) {
         await registrar(token);
         if (!cancelado) {
           localStorage.setItem(CONFIRMADO_EN,String(Date.now()));
+          localStorage.setItem(CONFIRMADO_UID,sesionUid);
           setActivado(true);
         }
       } catch (err) {
@@ -131,7 +147,7 @@ export default function PushControl({ cerrar }) {
       }
     })();
     return () => { cancelado = true; };
-  }, [sesion]);
+  }, [sesionUid]);
 
   const activar = async () => {
     if (ocupado || activado) return;
@@ -151,6 +167,7 @@ export default function PushControl({ cerrar }) {
       await registrar(token);
       localStorage.setItem(OPT_IN, 'yes');
       localStorage.setItem(CONFIRMADO_EN, String(Date.now()));
+      localStorage.setItem(CONFIRMADO_UID,sesionUid);
       setActivado(true);
       setEstado('Notificaciones activadas.');
     } catch (err) {
@@ -169,6 +186,7 @@ export default function PushControl({ cerrar }) {
       // no asegura que Firebase todavía reconozca el dispositivo.
       await registrar(token);
       localStorage.setItem(CONFIRMADO_EN,String(Date.now()));
+      localStorage.setItem(CONFIRMADO_UID,sesionUid);
       const result = await llamarPush('push-test', { token });
       setEstado(result.ok ? 'Firebase aceptó la prueba para este equipo. Revisá las notificaciones del teléfono.' : 'El servidor no confirmó el envío.');
     } catch (err) {
@@ -176,6 +194,7 @@ export default function PushControl({ cerrar }) {
       if(/no está registrado|PUSH_DISABLED|inscripción automática|FCM_SEND_FAILED|HTTP 403|HTTP 409/i.test(msg)){
         setActivado(false);
         localStorage.removeItem(CONFIRMADO_EN);
+        localStorage.removeItem(CONFIRMADO_UID);
       }
       setError(msg);
     } finally {
