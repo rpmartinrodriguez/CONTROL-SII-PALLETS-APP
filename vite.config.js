@@ -15,7 +15,11 @@ function versionPwa(){
       const source=await readFile(join(process.cwd(),'public/sw.js'),'utf8');
       await Promise.all([
         writeFile(join(dist,'version.json'),JSON.stringify({version,generatedAt:new Date().toISOString()})),
-        writeFile(join(dist,'sw.js'),source.replace('__SII_BUILD_VERSION__',JSON.stringify(version)))
+        writeFile(join(dist,'sw.js'),source.replace('__SII_BUILD_VERSION__',JSON.stringify(version))),
+        writeFile(join(dist,'auth-config.json'),JSON.stringify({
+          loginRequired:process.env.VITE_SII_LOGIN_REQUIRED==='true',
+          allowedEmails:String(process.env.VITE_SII_ALLOWED_EMAILS||'').split(',').map(v=>v.trim().toLowerCase()).filter(Boolean)
+        }))
       ]);
     }
   };
