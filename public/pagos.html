@@ -983,7 +983,7 @@
         }
 
         // --- INICIALIZACIÓN ---
-        document.addEventListener("DOMContentLoaded", () => {
+        document.addEventListener("DOMContentLoaded", async () => {
             const uiScaleInput = document.getElementById('ui-scale');
             uiScaleInput.addEventListener('input', (e) => {
                 document.body.style.zoom = e.target.value;
