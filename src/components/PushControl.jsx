@@ -96,10 +96,34 @@ async function registrar(token) {
   });
 }
 
+let registroPendiente=null;
+// Al regresar a la PWA, reconectar sin pedir permiso de nuevo si ya fue otorgado.
+// Solo visita Firestore cuando cambió el UID o venció la verificación de 12 horas.
+export async function reconectarPushSiAutorizado(uid){
+  if(!uid||auth.currentUser?.uid!==uid||
+     typeof Notification==='undefined'||Notification.permission!=='granted'||
+     localStorage.getItem(OPT_IN)!=='yes')return false;
+  const timestamp=Number(localStorage.getItem(CONFIRMADO_EN)||0);
+  if(localStorage.getItem(CONFIRMADO_UID)===uid&&
+     timestamp>0&&Date.now()-timestamp<CACHE_MS)return true;
+  if(registroPendiente)return registroPendiente;
+  registroPendiente=(async()=>{
+    const token=await tokenDeEsteEquipo();
+    await registrar(token);
+    if(auth.currentUser?.uid===uid){
+      localStorage.setItem(CONFIRMADO_EN,String(Date.now()));
+      localStorage.setItem(CONFIRMADO_UID,uid);
+    }
+    return true;
+  })().finally(()=>{registroPendiente=null;});
+  return registroPendiente;
+}
+
 // Al salir de un equipo compartido se revoca el token antes de cerrar sesión.
 export async function desvincularPushDeEsteEquipo(){
   if(typeof Notification==='undefined' || Notification.permission!=='granted' ||
      localStorage.getItem(OPT_IN)!=='yes')return;
+  if(registroPendiente)await registroPendiente;
   const token=await tokenDeEsteEquipo();
   await llamarPush('push-register',{action:'unregister',token});
   localStorage.removeItem(OPT_IN);
@@ -120,32 +144,12 @@ export default function PushControl({ cerrar }) {
   useEffect(() => {
     if (!sesion || typeof Notification === 'undefined') return undefined;
     if (localStorage.getItem(OPT_IN) !== 'yes' || Notification.permission !== 'granted') return undefined;
-    // Evitar una lectura/escritura en Firestore cada vez que se abre el modal.
-    // El estado se guarda SOLO después de un registro exitoso del servidor.
-    const confirmado = Number(localStorage.getItem(CONFIRMADO_EN)||0);
-    const mismoUsuario=localStorage.getItem(CONFIRMADO_UID)===sesionUid;
-    if (mismoUsuario && confirmado > 0 && Date.now()-confirmado < CACHE_MS) {
-      setActivado(true);
-      return undefined;
-    }
-    setActivado(false);
     let cancelado = false;
-    (async () => {
-      try {
-        const token = await tokenDeEsteEquipo();
-        await registrar(token);
-        if (!cancelado) {
-          localStorage.setItem(CONFIRMADO_EN,String(Date.now()));
-          localStorage.setItem(CONFIRMADO_UID,sesionUid);
-          setActivado(true);
-        }
-      } catch (err) {
-        if (!cancelado) {
-          setActivado(false);
-          setError(mensajeError(err));
-        }
-      }
-    })();
+    reconectarPushSiAutorizado(sesionUid).then(ok=>{
+      if(!cancelado)setActivado(Boolean(ok));
+    }).catch(err=>{
+      if(!cancelado){setActivado(false);setError(mensajeError(err));}
+    });
     return () => { cancelado = true; };
   }, [sesionUid]);
 
