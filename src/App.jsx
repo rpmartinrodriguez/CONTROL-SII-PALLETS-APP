@@ -13,7 +13,7 @@ import {
 import NavegacionMovil from './components/NavegacionMovil';
 import ProWorkspace from './components/ProWorkspace';
 import LoginSii from './components/LoginSii';
-import { desvincularPushDeEsteEquipo } from './components/PushControl';
+import { desvincularPushDeEsteEquipo, reconectarPushSiAutorizado } from './components/PushControl';
 import { exportarExcelCategorias, exportarPdfCategorias } from './pages/ExportarCategoriasPagos';
 import { categoriasPagos } from './utils/balanceSemanal';
 import { usePagosReales } from './hooks/usePagosReales';
@@ -175,6 +175,22 @@ export default function App() {
         });
         return () => unsubscribe();
     }, []);
+
+    useEffect(()=>{
+        if(!user?.uid)return undefined;
+        const revisar=()=>{
+            if(document.visibilityState!=='visible')return;
+            void reconectarPushSiAutorizado(user.uid).catch(err=>
+                console.warn('SII: registro push pendiente de reconexión:',err?.message||String(err)));
+        };
+        revisar();
+        document.addEventListener('visibilitychange',revisar);
+        window.addEventListener('online',revisar);
+        return ()=>{
+            document.removeEventListener('visibilitychange',revisar);
+            window.removeEventListener('online',revisar);
+        };
+    },[user?.uid]);
 
     useEffect(() => {
         if (!user) return; 
