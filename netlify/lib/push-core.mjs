@@ -34,6 +34,21 @@ export async function verifyAuthorized(request) {
   // El token NO autoriza a un usuario ajeno: ese control debe existir en la app.
   const user=await firebaseAdmin().auth.verifyIdToken(token,true);
   if(!user.uid) throw Error('Sesión Firebase sin UID');
+  // Habilitar este control junto con el login, la lista permitida y las reglas
+  // de Firestore. El código del navegador nunca puede ser la barrera de acceso.
+  const requireLogin=process.env.SII_LOGIN_REQUIRED==='true' ||
+    process.env.VITE_SII_LOGIN_REQUIRED==='true';
+  if(requireLogin){
+    const emails=String(process.env.SII_ALLOWED_EMAILS||
+      process.env.VITE_SII_ALLOWED_EMAILS||'')
+      .split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
+    if(!emails.length || user.firebase?.sign_in_provider!=='password' ||
+       !emails.includes(String(user.email||'').toLowerCase())){
+      const error=new Error('No tenés permiso para recibir notificaciones SII PALLETS.');
+      error.status=403;
+      throw error;
+    }
+  }
   return user.uid;
 }
 export const jsonResponse=(status,data)=>new Response(JSON.stringify(data),{
