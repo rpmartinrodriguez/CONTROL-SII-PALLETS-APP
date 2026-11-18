@@ -1009,19 +1009,30 @@
             // Esperar a que Firebase Authentication esté listo antes de leer la nueva base.
             // Evita lecturas anónimas sin sesión y sus errores de permisos.
             let lecturaIniciada = false;
+            // El iframe respeta el mismo requisito de login que el panel principal.
+            // La autenticación Firebase se comparte entre ventanas del mismo origen.
+            const authConfig=await fetch('/auth-config.json',{cache:'no-store'})
+              .then(r=>r.ok?r.json():Promise.reject(new Error('auth config')))
+              .catch(()=>({loginRequired:true,allowedEmails:[]}));
+            const allowed=Array.isArray(authConfig.allowedEmails)?authConfig.allowedEmails:[];
             onAuthStateChanged(auth, (usuario) => {
-                if (usuario && !lecturaIniciada) {
+                const identificado=Boolean(usuario && !usuario.isAnonymous &&
+                  allowed.includes(String(usuario.email||'').toLowerCase()));
+                if (usuario && (!authConfig.loginRequired || identificado) && !lecturaIniciada) {
                     lecturaIniciada = true;
                     loadDataRealtime();
-                } else if (!usuario) {
+                } else if (!usuario && !authConfig.loginRequired) {
                     signInAnonymously(auth).catch((error) => {
                         console.error('Firebase Auth Pagos:', error);
                         const loader = document.getElementById('fb-loader');
-                        if (loader) {
-                            loader.style.display = 'block';
-                            loader.textContent = 'No se pudo autenticar Pagos. Revisá que Authentication > Anonymous esté habilitado.';
-                        }
+                        if (loader) loader.textContent = 'No se pudo autenticar Pagos. Revisá Firebase Authentication.';
                     });
+                } else if (authConfig.loginRequired && !identificado) {
+                    const loader=document.getElementById('fb-loader');
+                    if(loader){
+                      loader.style.display='block';
+                      loader.textContent='Iniciá sesión desde la página principal de SII PALLETS para consultar Pagos.';
+                    }
                 }
             }, (error) => console.error('Firebase Auth Pagos:', error));
         });
