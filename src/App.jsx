@@ -1,6 +1,6 @@
 // Archivo: src/App.jsx
 import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
-import { onAuthStateChanged, signInAnonymously } from "firebase/auth";
+import { onAuthStateChanged, signInAnonymously, signOut } from "firebase/auth";
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, addDoc, setDoc } from "firebase/firestore";
 import { auth, db } from './firebase';
 import { getDays, formatMoney, formatDate, getTheme, handleReportAction, getCategoryLabel, getCategoryColor } from './utils/helpers';
@@ -12,6 +12,8 @@ import {
 
 import NavegacionMovil from './components/NavegacionMovil';
 import ProWorkspace from './components/ProWorkspace';
+import LoginSii from './components/LoginSii';
+import { desvincularPushDeEsteEquipo } from './components/PushControl';
 import { exportarExcelCategorias, exportarPdfCategorias } from './pages/ExportarCategoriasPagos';
 import { categoriasPagos } from './utils/balanceSemanal';
 import { usePagosReales } from './hooks/usePagosReales';
@@ -27,6 +29,11 @@ import { conectarBasesOriginales } from './utils/conectarFirebaseOriginales';
 import { solicitarChequeoPush } from './utils/pushClient';
 import { abrirVisorImpresion } from './utils/visorImpresion';
 
+const LOGIN_REQUIRED=import.meta.env.VITE_SII_LOGIN_REQUIRED==='true';
+const EMAILS_AUTORIZADOS=String(import.meta.env.VITE_SII_ALLOWED_EMAILS||'')
+  .split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
+const usuarioAutorizado = user=>Boolean(user && !user.isAnonymous &&
+  EMAILS_AUTORIZADOS.includes(String(user.email||'').toLowerCase()));
 
 export default function App() {
     const [mode, setMode] = useState(() => (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('migracion') === '1' ? 'migration' : 'collect'));
@@ -37,9 +44,10 @@ export default function App() {
     useEffect(()=>{
         try{window.localStorage.setItem('sii-sidebar-minimizado-v1',String(sidebarMinimizado));}catch{}
     },[sidebarMinimizado]); // Inicia en la nueva pestaña de Pagos
-    const pagosAvanzados = usePagosReales(true); // Indicadores de Pagos Avanzados y Balance comparten un único lector
-    const pagosIframeRef = useRef(null);
-    const [user, setUser] = useState(null); 
+    const [user, setUser] = useState(null);
+    const [authReady,setAuthReady] = useState(false);
+    const pagosAvanzados = usePagosReales(!LOGIN_REQUIRED || !!user); // No consultar finanzas antes del login
+    const pagosIframeRef = useRef(null); 
     const [payItems, setPayItems] = useState([]); 
     const [collectItems, setCollectItems] = useState([]);
     const [walletItems, setWalletItems] = useState([]);
@@ -154,9 +162,14 @@ export default function App() {
         });
         
         const unsubscribe = onAuthStateChanged(auth, (u) => {
-            if (u) {
-                setUser(u); 
+            setAuthReady(true);
+            if(LOGIN_REQUIRED){
+                // Nunca aceptar usuarios anónimos ni correos sin autorizar.
+                setUser(usuarioAutorizado(u)?u:null);
+            } else if(u) {
+                setUser(u);
             } else {
+                setUser(null);
                 signInAnonymously(auth).catch(console.error);
             }
         });
@@ -1089,10 +1102,32 @@ export default function App() {
         }
     }, [mode, showAddForm, editingId]);
 
+    const cerrarSesionSii=async()=>{
+        try{
+            await desvincularPushDeEsteEquipo();
+        }catch(error){
+            const seguir=window.confirm('No se pudieron desactivar las notificaciones en este equipo: '+
+              (error?.message||'Error')+'. Si cerrás sesión podrían seguir llegando avisos. ¿Cerrar de todos modos?');
+            if(!seguir)return;
+        }
+        await signOut(auth);
+        setUser(null);
+        setMode('collect');
+    };
+
+    // Mantener el acceso anterior hasta que se aprovisione Firebase y se habilite
+    // VITE_SII_LOGIN_REQUIRED en Netlify. No bloquear usuarios por una cuenta inexistente.
+    if(LOGIN_REQUIRED&&!authReady)return <div className="min-h-[100dvh] flex items-center justify-center text-slate-600">Verificando acceso seguro…</div>;
+    if(LOGIN_REQUIRED&&!EMAILS_AUTORIZADOS.length)return <div role="alert" className="p-6 text-rose-700 font-bold">
+      El acceso de SII PALLETS todavía no está configurado en Netlify (VITE_SII_ALLOWED_EMAILS).
+    </div>;
+    if(LOGIN_REQUIRED&&!user)return <LoginSii/>;
+
     // EL TRUCO 100% PANTALLA COMPLETA: w-full min-h-screen sin límites
     return (
         <div className={'sii-pro-app w-full min-h-screen relative pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-8'+(sidebarMinimizado?' sii-sidebar-collapsed':'')}>
             <ProWorkspace mode={mode} onNavigate={changeMode} onOpenNotification={abrirDesdeNotificacion}
+              user={LOGIN_REQUIRED?user:null} onLogout={cerrarSesionSii}
               collectItems={collectItems} payItems={payItems} pagosAvanzados={pagosAvanzados}
               searchTerm={searchTerm} setSearchTerm={setSearchTerm}
               sidebarMinimizado={sidebarMinimizado} setSidebarMinimizado={setSidebarMinimizado} />
