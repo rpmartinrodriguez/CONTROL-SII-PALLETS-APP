@@ -20,7 +20,7 @@ const modules = [
 ];
 const pesos = number => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(number)||0);
 const out = list => list.filter(item=>item.status !== 'paid');
-export default function ProWorkspace({mode,onNavigate,onOpenNotification,collectItems,payItems,pagosAvanzados,searchTerm,setSearchTerm,sidebarMinimizado,setSidebarMinimizado}) {
+export default function ProWorkspace({mode,onNavigate,onOpenNotification,collectItems,payItems,pagosAvanzados,searchTerm,setSearchTerm,sidebarMinimizado,setSidebarMinimizado,user,onLogout}) {
   const [pushAbierto,setPushAbierto] = useState(false);
   const resumen = useMemo(()=>{
     const cobros = out(collectItems);
@@ -55,7 +55,7 @@ export default function ProWorkspace({mode,onNavigate,onOpenNotification,collect
           {mode===id&&<span className="sii-pro-navdot" aria-hidden="true"/>}
         </button>)}
       </div>
-      <div className="sii-pro-sidefoot"><span className="sii-pro-live"/><span className="sii-sidebar-text"> FIREBASE EN LÍNEA <small className="block mt-1 text-slate-400">Cuenta personal · SII PRO</small></span></div>
+      <div className="sii-pro-sidefoot"><span className="sii-pro-live"/><span className="sii-sidebar-text"> FIREBASE EN LÍNEA <small className="block mt-1 text-slate-400">{user?.email||'Cuenta personal · SII PRO'}</small></span></div>
     </aside>
     <div className="sii-pro-topline">
       <div className="flex items-center gap-3 min-w-0">
@@ -66,6 +66,8 @@ export default function ProWorkspace({mode,onNavigate,onOpenNotification,collect
         <span className="sii-pro-connection"><span className="sii-pro-live"/> En línea</span>
         <CentroNotificaciones onOpen={onOpenNotification}/>
         <button onClick={()=>setPushAbierto(v=>!v)} className="sii-pro-action">Notificaciones <span className="hidden sm:inline">push</span></button>
+        {user&&<button type="button" className="sii-pro-action" onClick={onLogout}
+          title={'Cerrar sesión de '+(user.email||'SII PALLETS')} aria-label="Cerrar sesión">Salir</button>}
       </div>
     </div>
     {pushAbierto&&<PushControl cerrar={()=>setPushAbierto(false)}/>}
