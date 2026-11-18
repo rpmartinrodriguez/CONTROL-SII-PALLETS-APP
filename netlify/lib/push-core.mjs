@@ -8,10 +8,13 @@ export const sha = s => createHash('sha256').update(String(s)).digest('hex');
 const MAX_EVENTS = 150;
 const money = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n)||0);
 const isPaid = s => ['PAGADO','PAID','CANCELADO','COBRADO','SALDADO'].includes(String(s||'').toUpperCase());
-// Interruptor UNIVERSAL: se configura una sola vez, nunca por dispositivo.
-// Se mantiene apagado hasta que el acceso a la aplicación esté restringido
-// a personal autorizado. Firebase Anonymous NO demuestra esa autorización.
+// Las notificaciones permanecen desligadas del login hasta completar
+// la activación coordinada de Firebase Authentication y Firestore Rules.
 export const autoEnrollmentEnabled = () => process.env.SII_PUSH_AUTO_ENROLLMENT === 'true';
+export const loginRequired = () => process.env.SII_LOGIN_REQUIRED==='true' ||
+  process.env.VITE_SII_LOGIN_REQUIRED==='true';
+export const allowedEmails = () => String(process.env.SII_ALLOWED_EMAILS ||
+  process.env.VITE_SII_ALLOWED_EMAILS ||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
 export const isQuotaExceeded = error =>
   Number(error?.code) === 8 ||
   String(error?.code || '').toLowerCase() === 'resource-exhausted' ||
@@ -36,12 +39,8 @@ export async function verifyAuthorized(request) {
   if(!user.uid) throw Error('Sesión Firebase sin UID');
   // Habilitar este control junto con el login, la lista permitida y las reglas
   // de Firestore. El código del navegador nunca puede ser la barrera de acceso.
-  const requireLogin=process.env.SII_LOGIN_REQUIRED==='true' ||
-    process.env.VITE_SII_LOGIN_REQUIRED==='true';
-  if(requireLogin){
-    const emails=String(process.env.SII_ALLOWED_EMAILS||
-      process.env.VITE_SII_ALLOWED_EMAILS||'')
-      .split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
+  if(loginRequired()){
+    const emails=allowedEmails();
     if(!emails.length || user.firebase?.sign_in_provider!=='password' ||
        !emails.includes(String(user.email||'').toLowerCase())){
       const error=new Error('No tenés permiso para recibir notificaciones SII PALLETS.');
@@ -134,7 +133,10 @@ function plusDays(date,days) {
 async function getSubscribers(db) {
   if(!autoEnrollmentEnabled()) return [];
   const snap=await db.collection('sii_push_devices').where('enabled','==',true).get();
-  return snap.docs.map(d=>d.data()).filter(x=>Boolean(x.uid)&&typeof x.token==='string'&&x.token.length>20);
+  return snap.docs.map(d=>d.data()).filter(x=>
+    Boolean(x.uid)&&typeof x.token==='string'&&x.token.length>20&&
+    (!loginRequired() || (x.authProvider==='password' &&
+      allowedEmails().includes(String(x.userEmail||'').toLowerCase()))));
 }
 async function deliver(db,messaging,event,devices) {
   if(!devices.length)return 0;
