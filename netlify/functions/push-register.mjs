@@ -1,4 +1,4 @@
-import { firebaseAdmin, verifyAuthorized, jsonResponse, sha, isQuotaExceeded } from '../lib/push-core.mjs';
+import { firebaseAdmin, verifyAuthorized, jsonResponse, sha, isQuotaExceeded, loginRequired, allowedEmails } from '../lib/push-core.mjs';
 import { FieldValue } from 'firebase-admin/firestore';
 
 export default async function handler(request) {
@@ -19,16 +19,25 @@ export default async function handler(request) {
       return jsonResponse(200,{ok:true,registered:false});
     }
     const before=await ref.get();
-    // Si este token ya está registrado y habilitado, no gastamos una escritura
-    // en cada apertura del modal. El UID puede actualizarse si cambió la sesión.
+    const loggedIn=loginRequired();
+    // Consultamos Authentication solamente al registrar/cambiar un dispositivo.
+    // Se confía en Firebase Admin, nunca en un correo enviado por el navegador.
+    const account=loggedIn?await firebaseAdmin().auth.getUser(uid):null;
+    if(loggedIn && (!account?.email ||
+      !allowedEmails().includes(account.email.toLowerCase()))){
+      return jsonResponse(403,{code:'PUSH_UNAUTHORIZED',error:'Usuario sin permisos para notificaciones.'});
+    }
     if(before.exists && before.data()?.uid===uid &&
-       before.data()?.token===input.token && before.data()?.enabled===true){
+       before.data()?.token===input.token && before.data()?.enabled===true &&
+       (!loggedIn || (before.data()?.authProvider==='password' &&
+        before.data()?.userEmail===account.email.toLowerCase()))){
       return jsonResponse(200,{ok:true,registered:true,alreadyRegistered:true});
     }
     const deviceName=String(input.deviceName||'Dispositivo web').slice(0,80);
     const userAgent=String(input.userAgent||'').slice(0,180);
     const record={
       uid,token:input.token,enabled:true,deviceName,userAgent,
+      ...(loggedIn?{userEmail:account.email.toLowerCase(),authProvider:'password'}:{}),
       origin:new URL(request.url).origin,
       updatedAt:FieldValue.serverTimestamp()
     };
