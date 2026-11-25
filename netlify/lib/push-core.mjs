@@ -91,7 +91,7 @@ export function eventForMovement(kind,id,action,record,now=Date.now()){
     return {
       id:'mov:'+kind+':'+id+':new:'+sha(String(created?.toMillis?.()??created)),
       category:kind==='presupuesto'?'new_quote':cobro?'new_collect':'new_pay',
-      title:kind==='presupuesto'?'Nuevo presupuesto registrado':cobro?'Nuevo cobro registrado':'Nuevo pago registrado',
+      title:kind==='presupuesto'?'Nuevo presupuesto registrado':cobro?'Nueva factura registrada':'Nuevo pago registrado',
       body:name+' · '+money(amount)+(kind==='presupuesto'?' · Presupuesto '+number:ref)
     };
   }
