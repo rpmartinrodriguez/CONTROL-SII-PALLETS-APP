@@ -34,3 +34,20 @@ export function presupuestoCopia(original,nuevoNumero,nuevaFecha,crearId){
     }))
   };
 }
+
+/**
+ * Los presupuestos anteriores a esta mejora no tienen estado:
+ * se presentan como pendientes sin modificar ni migrar sus documentos.
+ */
+export const estadoGestionPresupuesto = presupuesto =>
+  presupuesto?.estadoGestion === 'realizado' ? 'realizado' : 'pendiente';
+
+export function separarPresupuestosPorEstado(historial=[]){
+  const pendientes=[];
+  const realizados=[];
+  for(const presupuesto of historial){
+    if(estadoGestionPresupuesto(presupuesto)==='realizado')realizados.push(presupuesto);
+    else pendientes.push(presupuesto);
+  }
+  return {pendientes,realizados};
+}
