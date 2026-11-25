@@ -3,7 +3,7 @@ import { addDoc, collection, doc, onSnapshot, runTransaction, serverTimestamp, u
 import { db } from '../firebase';
 import { solicitarChequeoPush } from '../utils/pushClient';
 import { coincideCliente, normalizarBusqueda, ultimoPrecioCliente } from '../utils/clientesPresupuesto';
-import { agruparPresupuestosPorCliente, proximoNumeroDisponible, presupuestoCopia } from '../utils/historialPresupuestos';
+import { agruparPresupuestosPorCliente, separarPresupuestosPorEstado, estadoGestionPresupuesto, proximoNumeroDisponible, presupuestoCopia } from '../utils/historialPresupuestos';
 import { LOGO_PRESUPUESTO } from '../assets/logoPresupuesto';
 import {
   EMISOR,ITEM_VACIO,COTIZACION_INICIO,numeroCotizacion,fechaHoyLocal,
@@ -47,6 +47,11 @@ export default function PresupuestosPDF() {
   const [historialError,setHistorialError]=useState('');
   const [mostrarGuardados,setMostrarGuardados]=useState(false);
   const [clienteGuardadoAbierto,setClienteGuardadoAbierto]=useState('');
+  const [vistaGuardados,setVistaGuardados]=useState('pendientes');
+  const [gestionModal,setGestionModal]=useState(null);
+  const [notaGestion,setNotaGestion]=useState('');
+  const [gestionError,setGestionError]=useState('');
+  const [gestionMensaje,setGestionMensaje]=useState('');
   const [preciosParaRevisar,setPreciosParaRevisar]=useState([]);
   // Impide que una actualización de la PWA borre un presupuesto sin emitir.
   const borradorSinGuardar=useMemo(()=>{
@@ -83,7 +88,13 @@ export default function PresupuestosPDF() {
       normalizarBusqueda(p.cliente?.razonSocial)===nombre)
       .sort((a,b)=>String(b.fecha||'').localeCompare(String(a.fecha||''))||String(b.numero||'').localeCompare(String(a.numero||'')));
   },[historial,clienteId,quote.cliente.razonSocial,quote.cliente.cuit]);
-  const gruposGuardados=useMemo(()=>agruparPresupuestosPorCliente(historial),[historial]);
+  const tablero=useMemo(()=>{
+    const {pendientes,realizados}=separarPresupuestosPorEstado(historial);
+    return {
+      pendientes:{total:pendientes.length,grupos:agruparPresupuestosPorCliente(pendientes)},
+      realizados:{total:realizados.length,grupos:agruparPresupuestosPorCliente(realizados)}
+    };
+  },[historial]);
   const sugerirNumero=()=>numeroCotizacion(proximoNumeroDisponible(historial,
     Number(quote.numero?.split('-')[1])+1||COTIZACION_INICIO,getSequence()));
   const copiarGuardado=original=>{
@@ -187,6 +198,47 @@ export default function PresupuestosPDF() {
     }catch(err){setError('No se pudo borrar: '+err.message);}
     finally{envioEnCurso.current=false;setBusy('');}
   };
+  const abrirGestion=(p,modo='realizar')=>{
+    if(envioEnCurso.current)return;
+    setGestionModal({numero:p.numero,id:p.id||p.numero,cliente:p.cliente?.razonSocial||'',modo});
+    setNotaGestion(String(p.notaGestion||''));
+    setGestionError('');
+    setGestionMensaje('');
+  };
+  const guardarGestion=async()=>{
+    if(!gestionModal||envioEnCurso.current)return;
+    envioEnCurso.current=true;setBusy('gestion');setGestionError('');
+    try{
+      const data={
+        notaGestion:notaGestion.trim().slice(0,500),
+        gestionActualizadoEn:serverTimestamp()
+      };
+      if(gestionModal.modo==='realizar'){
+        data.estadoGestion='realizado';
+        data.realizadoEn=serverTimestamp();
+      }
+      await updateDoc(doc(db,'historial_presupuestos_sii',gestionModal.id),data);
+      setGestionMensaje(gestionModal.modo==='realizar'
+        ?'Presupuesto '+gestionModal.numero+' marcado como realizado.'
+        :'Nota de gestión del presupuesto '+gestionModal.numero+' actualizada.');
+      setGestionModal(null);setNotaGestion('');
+    }catch(err){
+      setGestionError('No se pudo guardar el estado: '+(err?.message||String(err)));
+    }finally{envioEnCurso.current=false;setBusy('');}
+  };
+  const volverPendiente=async p=>{
+    if(envioEnCurso.current)return;
+    envioEnCurso.current=true;setBusy('gestion');setGestionError('');setGestionMensaje('');
+    try{
+      // Se conserva la nota de gestión para no perder el número de OC.
+      await updateDoc(doc(db,'historial_presupuestos_sii',p.id||p.numero),{
+        estadoGestion:'pendiente',realizadoEn:null,gestionActualizadoEn:serverTimestamp()
+      });
+      setGestionMensaje('Presupuesto '+p.numero+' devuelto a Pendientes. La nota interna se conservó.');
+    }catch(err){
+      setGestionError('No se pudo volver a pendientes: '+(err?.message||String(err)));
+    }finally{envioEnCurso.current=false;setBusy('');}
+  };
   const reimprimirGuardado=async p=>{
     if(envioEnCurso.current)return;
     // Abrir la vista antes de la tarea asíncrona evita bloqueos de ventanas
@@ -220,9 +272,11 @@ export default function PresupuestosPDF() {
     {lista.map(p=><div key={p.numero} className="rounded-xl border border-slate-200 bg-white p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div className="min-w-0">
         <strong className="text-sm text-slate-900">{p.numero}</strong>
+        <span className={'ml-2 text-[10px] font-bold '+(estadoGestionPresupuesto(p)==='realizado'?'text-emerald-700':'text-amber-700')}>{estadoGestionPresupuesto(p)==='realizado'?'Realizado':'Pendiente'}</span>
         <p className="text-xs text-slate-500">{fechaAR(p.fecha)} · {p.cuenta==='2'?'Cuenta 2':'Cuenta 1'} · {peso(Number(p.totalCentavos)||0)}</p>
         <div className="flex flex-wrap gap-1 mt-2">{(p.items||[]).map((i,j)=><span key={i.id||j} className="text-xs text-blue-900 bg-blue-50 rounded-md px-2 py-1">{i.cantidad} × {i.descripcion||'Artículo'}</span>)}</div>
-        {p.nota&&<p className="text-xs text-slate-500 mt-1">Nota: {p.nota}</p>}
+        {p.nota&&<p className="text-xs text-slate-500 mt-1">Nota del PDF: {p.nota}</p>}
+        {p.notaGestion&&<p className="text-xs text-slate-600 mt-1">Nota de gestión: {p.notaGestion}</p>}
       </div>
       <div className="flex flex-wrap gap-2 shrink-0">
         <button type="button" disabled={!!busy} onClick={()=>copiarGuardado(p)} className="px-3 py-2 rounded-lg bg-blue-700 text-white text-xs font-bold">Copiar</button>
@@ -363,42 +417,132 @@ export default function PresupuestosPDF() {
         <button type="button" onClick={newQuote} className="sii-pro-button-primary flex-1 sm:flex-none">+ Nuevo presupuesto</button>
       </div>
     </div>
-    {mostrarGuardados && <section className="bg-white border border-slate-200 rounded-3xl shadow-sm p-4 sm:p-6 space-y-4">
+    {mostrarGuardados && <section className="bg-white border border-slate-200 rounded-3xl shadow-sm p-4 sm:p-6 space-y-4" aria-label="Tablero de presupuestos guardados">
       <div>
-        <h3 className="text-lg font-black text-slate-900">Presupuestos por cliente</h3>
-        <p className="text-xs text-slate-500 mt-1">Elegí un cliente y copiá el presupuesto que quieras volver a cotizar.</p>
+        <h3 className="text-lg font-black text-slate-900">Seguimiento de presupuestos</h3>
+        <p className="text-xs text-slate-500 mt-1">Organizá los presupuestos por estado y cliente. Los guardados anteriores aparecen como Pendientes hasta que los marques como Realizados.</p>
       </div>
-      {gruposGuardados.length===0?<p className="text-sm text-slate-500 p-4 bg-slate-50 rounded-xl">Todavía no hay presupuestos guardados en esta base.</p>:
-      <div className="grid gap-2">
-        {gruposGuardados.map(grupo=><div key={grupo.clave} className="border border-slate-200 rounded-2xl overflow-hidden">
-          <button type="button" aria-expanded={clienteGuardadoAbierto===grupo.clave}
-            onClick={()=>setClienteGuardadoAbierto(v=>v===grupo.clave?'':grupo.clave)}
-            className="w-full flex items-center justify-between gap-3 p-4 bg-slate-50 hover:bg-blue-50 text-left">
-            <div className="min-w-0"><strong className="block text-sm sm:text-base text-slate-900 break-words">{grupo.nombre}</strong>
-              <p className="text-xs text-slate-500">{grupo.presupuestos.length} presupuesto(s)</p></div>
-            <span className="text-blue-700 font-black text-xl shrink-0">{clienteGuardadoAbierto===grupo.clave?'−':'+'}</span>
-          </button>
-          {clienteGuardadoAbierto===grupo.clave&&<div className="divide-y divide-slate-100">
-            {grupo.presupuestos.map(p=><div key={p.id||p.numero} className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between p-3 sm:p-4 bg-white">
-              <div className="min-w-0">
-                <strong className="block text-sm text-slate-800">{p.numero||'Sin número'}</strong>
-                <span className="block text-xs text-slate-500 mt-1">{fechaAR(p.fecha)} · {p.items?.length||0} ítem(s) · {p.cuenta==='2'?'Cuenta 2':'Cuenta 1'}</span>
-                <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Artículos presupuestados">
-                  {(p.items||[]).length>0 ? p.items.map((item,index)=>
-                    <span key={item.id||index} className="inline-flex max-w-full items-start gap-1.5 rounded-lg border border-blue-100 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                      <span className="shrink-0 text-blue-700">{item.cantidad||1} ×</span>
-                      <span className="break-words">{item.descripcion||'Artículo sin descripción'}</span>
-                    </span>
-                  ) : <span className="text-xs text-slate-400">Sin artículos registrados</span>}
-                </div>
-                <strong className="block text-sm text-blue-800 mt-2">{peso(Number(p.totalCentavos)||0)}</strong>
+      {gestionMensaje&&<p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 p-3 text-sm">{gestionMensaje}</p>}
+      {gestionError&&!gestionModal&&<p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 text-rose-700 p-3 text-sm">{gestionError}</p>}
+      <div className="grid grid-cols-2 gap-2 lg:hidden" role="tablist" aria-label="Estado de presupuestos">
+        {[{id:'pendientes',titulo:'Pendientes'},{id:'realizados',titulo:'Realizados'}].map(c=><button
+          key={c.id} type="button" role="tab" aria-selected={vistaGuardados===c.id}
+          onClick={()=>{setVistaGuardados(c.id);setClienteGuardadoAbierto('');}}
+          className={'rounded-xl border px-3 py-3 text-sm font-extrabold '+(vistaGuardados===c.id
+            ?'bg-blue-800 text-white border-blue-800'
+            :'bg-slate-50 text-slate-700 border-slate-200')}>
+          {c.titulo} ({tablero[c.id].total})
+        </button>)}
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        {[{id:'pendientes',titulo:'Pendientes',color:'amber'},{id:'realizados',titulo:'Realizados',color:'emerald'}].map(columna=>
+          <div key={columna.id} className={(vistaGuardados!==columna.id?'hidden lg:block ':'')+
+            'min-w-0 rounded-2xl border p-3 sm:p-4 '+(columna.id==='pendientes'?'border-amber-200 bg-amber-50/50':'border-emerald-200 bg-emerald-50/50')}
+            role="tabpanel" aria-label={columna.titulo}>
+            <div className="flex items-center justify-between gap-3 pb-3">
+              <div className="flex items-center gap-2">
+                <span className={'h-2.5 w-2.5 shrink-0 rounded-full '+(columna.id==='pendientes'?'bg-amber-500':'bg-emerald-500')} aria-hidden="true"/>
+                <h4 className="text-base font-black text-slate-900">{columna.titulo}</h4>
               </div>
-              <div className="flex flex-wrap gap-2 shrink-0"><button type="button" disabled={!!busy} onClick={()=>copiarGuardado(p)} className="sii-pro-button-primary">Copiar</button><button type="button" disabled={!!busy} onClick={()=>reimprimirGuardado(p)} className="sii-pro-button-secondary">Reimprimir</button><button type="button" disabled={!!busy} onClick={()=>editarGuardado(p)} className="sii-pro-button-secondary">Editar</button><button type="button" disabled={!!busy} onClick={()=>borrarGuardado(p)} className="rounded-xl px-3 py-2 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">Borrar</button></div>
-            </div>)}
-          </div>}
-        </div>)}
-      </div>}
+              <span className="rounded-full bg-white border border-slate-200 px-2.5 py-1 text-xs font-black text-slate-700">{tablero[columna.id].total}</span>
+            </div>
+            {tablero[columna.id].grupos.length===0
+              ? <p className="text-sm text-slate-500 bg-white border border-dashed border-slate-200 rounded-xl p-4">No hay presupuestos {columna.id}.</p>
+              : <div className="space-y-2">
+                {tablero[columna.id].grupos.map(grupo=>{
+                  const clave=columna.id+':'+grupo.clave;
+                  const abierto=clienteGuardadoAbierto===clave;
+                  return <div key={clave} className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                    <button type="button" aria-expanded={abierto}
+                      onClick={()=>setClienteGuardadoAbierto(v=>v===clave?'':clave)}
+                      className="w-full flex items-center justify-between gap-3 px-3 py-3 bg-white hover:bg-slate-50 text-left">
+                      <div className="min-w-0">
+                        <strong className="text-sm text-slate-900 break-words">{grupo.nombre}</strong>
+                        <p className="text-xs text-slate-500 mt-0.5">{grupo.presupuestos.length} presupuesto(s)</p>
+                      </div>
+                      <span className="text-blue-700 font-black text-xl shrink-0" aria-hidden="true">{abierto?'−':'+'}</span>
+                    </button>
+                    {abierto&&<div className="border-t border-slate-100 divide-y divide-slate-100">
+                      {grupo.presupuestos.map(p=><article key={p.id||p.numero} className="p-3 space-y-3">
+                        <div className="flex flex-wrap justify-between gap-2 items-start">
+                          <div>
+                            <strong className="block text-sm font-black text-slate-900">{p.numero||'Sin número'}</strong>
+                            <p className="text-xs text-slate-500 mt-1">{fechaAR(p.fecha)} · {p.cuenta==='2'?'Cuenta 2':'Cuenta 1'} · {p.items?.length||0} ítem(s)</p>
+                          </div>
+                          <strong className="text-sm text-blue-900">{peso(Number(p.totalCentavos)||0)}</strong>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5" aria-label="Artículos presupuestados">
+                          {(p.items||[]).map((item,index)=><span key={item.id||index}
+                            className="inline-flex max-w-full items-start gap-1.5 rounded-lg border border-blue-100 bg-blue-50 px-2 py-1 text-xs font-semibold text-slate-700">
+                            <span className="shrink-0 text-blue-700">{item.cantidad||1} ×</span>
+                            <span className="break-words">{item.descripcion||'Artículo sin descripción'}</span>
+                          </span>)}
+                        </div>
+                        {p.notaGestion&&<p className="text-xs text-slate-700 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 break-words">
+                          <strong>Nota interna / OC:</strong> {p.notaGestion}
+                        </p>}
+                        {p.nota&&<p className="text-xs text-slate-500 break-words">Nota del PDF: {p.nota}</p>}
+                        <div className="flex flex-wrap gap-2">
+                          {columna.id==='pendientes'
+                            ? <button type="button" disabled={!!busy} onClick={()=>abrirGestion(p)}
+                                className="rounded-lg bg-emerald-700 hover:bg-emerald-800 px-3 py-2 text-white text-xs font-extrabold disabled:opacity-50">
+                                Marcar realizado
+                              </button>
+                            : <>
+                              <button type="button" disabled={!!busy} onClick={()=>abrirGestion(p,'nota')}
+                                className="rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 px-3 py-2 text-xs font-bold disabled:opacity-50">
+                                {p.notaGestion?'Editar nota / OC':'Agregar nota / OC'}
+                              </button>
+                              <button type="button" disabled={!!busy} onClick={()=>volverPendiente(p)}
+                                className="rounded-lg bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 text-xs font-bold disabled:opacity-50">
+                                Volver a pendientes
+                              </button>
+                            </>}
+                        </div>
+                        <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+                          <button type="button" disabled={!!busy} onClick={()=>copiarGuardado(p)} className="sii-pro-button-primary">Copiar</button>
+                          <button type="button" disabled={!!busy} onClick={()=>reimprimirGuardado(p)} className="sii-pro-button-secondary">Reimprimir</button>
+                          <button type="button" disabled={!!busy} onClick={()=>editarGuardado(p)} className="sii-pro-button-secondary">Editar</button>
+                          <button type="button" disabled={!!busy} onClick={()=>borrarGuardado(p)}
+                            className="rounded-xl px-3 py-2 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold disabled:opacity-50">Borrar</button>
+                        </div>
+                      </article>)}
+                    </div>}
+                  </div>;
+                })}
+              </div>}
+          </div>)}
+      </div>
+      <p className="text-[11px] text-slate-500">La nota de gestión es interna y no modifica el PDF original. No hay nuevas consultas a Firebase para mostrar el tablero.</p>
     </section>}
+    {gestionModal&&<div className="fixed inset-0 z-[80] bg-slate-950/60 flex items-center justify-center p-3 sm:p-5" role="presentation">
+      <section role="dialog" aria-modal="true" aria-labelledby="sii-gestion-presupuesto-titulo"
+        className="w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl bg-white p-5 sm:p-6 shadow-2xl space-y-4">
+        <div>
+          <h3 id="sii-gestion-presupuesto-titulo" className="text-lg font-black text-slate-900">
+            {gestionModal.modo==='realizar'?'Marcar presupuesto como realizado':'Editar nota de gestión'}
+          </h3>
+          <p className="text-sm text-slate-500 mt-1">{gestionModal.numero} · {gestionModal.cliente}</p>
+        </div>
+        <label className="block">
+          <span className="block text-sm font-bold text-slate-800">Nota interna / número de OC (opcional)</span>
+          <textarea autoFocus className={input+' mt-2 min-h-[110px] resize-y'} rows={4} maxLength={500}
+            placeholder="Ej.: OC N.º 1234, fecha de entrega o indicaciones internas…"
+            value={notaGestion} onChange={e=>setNotaGestion(e.target.value.slice(0,500))}/>
+          <span className="text-xs text-slate-500">{notaGestion.length}/500 caracteres · Podés dejar este campo vacío</span>
+        </label>
+        <p className="text-xs text-slate-600">Este dato se guarda para seguimiento comercial. No modifica el presupuesto ni aparece en su PDF.</p>
+        {gestionError&&<p role="alert" className="text-sm rounded-xl bg-rose-50 text-rose-800 p-3">{gestionError}</p>}
+        <div className="flex gap-2 justify-end">
+          <button type="button" disabled={!!busy} onClick={()=>{setGestionModal(null);setGestionError('');}}
+            className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-bold text-slate-700 disabled:opacity-50">Cancelar</button>
+          <button type="button" disabled={!!busy} onClick={guardarGestion}
+            className="rounded-xl bg-emerald-700 hover:bg-emerald-800 px-4 py-3 text-white text-sm font-black disabled:opacity-50">
+            {busy==='gestion'?'Guardando…':gestionModal.modo==='realizar'?'Confirmar realizado':'Guardar nota'}
+          </button>
+        </div>
+      </section>
+    </div>}
     <div id="sii-presupuesto-editor" className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-4 items-start">
       <section className="space-y-4 min-w-0">
         <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
