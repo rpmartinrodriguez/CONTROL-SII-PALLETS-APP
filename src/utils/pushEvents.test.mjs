@@ -9,6 +9,7 @@ test('solo genera notificación para un alta reciente de Cobros',()=>{
   const data={payee:'Cliente',number:'FC-123',amount:1200,createdAt:reciente};
   const event=eventForMovement('cobro','abc-1','create',data,now);
   assert.equal(event.category,'new_collect');
+  assert.equal(event.title,'Nueva factura registrada');
   assert.match(event.body,/FC-123/);
   assert.equal(eventForMovement('cobro','abc-1','create',data,now)?.id,event.id);
   assert.equal(eventForMovement('cobro','abc-2','create',data,now)?.id===event.id,false);
