@@ -200,7 +200,9 @@ export default function PresupuestosPDF() {
   };
   const abrirGestion=(p,modo='realizar')=>{
     if(envioEnCurso.current)return;
-    setGestionModal({numero:p.numero,id:p.id||p.numero,cliente:p.cliente?.razonSocial||'',modo});
+    const grupo=tablero[modo==='realizar'?'pendientes':'realizados'].grupos
+      .find(g=>g.presupuestos.some(q=>(q.id||q.numero)===(p.id||p.numero)));
+    setGestionModal({numero:p.numero,id:p.id||p.numero,cliente:p.cliente?.razonSocial||'',modo,grupoClave:grupo?.clave||''});
     setNotaGestion(String(p.notaGestion||''));
     setGestionError('');
     setGestionMensaje('');
@@ -218,6 +220,10 @@ export default function PresupuestosPDF() {
         data.realizadoEn=serverTimestamp();
       }
       await updateDoc(doc(db,'historial_presupuestos_sii',gestionModal.id),data);
+      if(gestionModal.modo==='realizar'){
+        setVistaGuardados('realizados');
+        if(gestionModal.grupoClave)setClienteGuardadoAbierto('realizados:'+gestionModal.grupoClave);
+      }
       setGestionMensaje(gestionModal.modo==='realizar'
         ?'Presupuesto '+gestionModal.numero+' marcado como realizado.'
         :'Nota de gestión del presupuesto '+gestionModal.numero+' actualizada.');
@@ -231,9 +237,13 @@ export default function PresupuestosPDF() {
     envioEnCurso.current=true;setBusy('gestion');setGestionError('');setGestionMensaje('');
     try{
       // Se conserva la nota de gestión para no perder el número de OC.
+      const grupo=tablero.realizados.grupos.find(g=>
+        g.presupuestos.some(q=>(q.id||q.numero)===(p.id||p.numero)));
       await updateDoc(doc(db,'historial_presupuestos_sii',p.id||p.numero),{
         estadoGestion:'pendiente',realizadoEn:null,gestionActualizadoEn:serverTimestamp()
       });
+      setVistaGuardados('pendientes');
+      if(grupo)setClienteGuardadoAbierto('pendientes:'+grupo.clave);
       setGestionMensaje('Presupuesto '+p.numero+' devuelto a Pendientes. La nota interna se conservó.');
     }catch(err){
       setGestionError('No se pudo volver a pendientes: '+(err?.message||String(err)));
@@ -468,6 +478,8 @@ export default function PresupuestosPDF() {
                           <div>
                             <strong className="block text-sm font-black text-slate-900">{p.numero||'Sin número'}</strong>
                             <p className="text-xs text-slate-500 mt-1">{fechaAR(p.fecha)} · {p.cuenta==='2'?'Cuenta 2':'Cuenta 1'} · {p.items?.length||0} ítem(s)</p>
+                            {columna.id==='realizados'&&p.realizadoEn?.toDate&&
+                              <p className="text-xs text-emerald-700 mt-1">Realizado el {p.realizadoEn.toDate().toLocaleDateString('es-AR')}</p>}
                           </div>
                           <strong className="text-sm text-blue-900">{peso(Number(p.totalCentavos)||0)}</strong>
                         </div>
