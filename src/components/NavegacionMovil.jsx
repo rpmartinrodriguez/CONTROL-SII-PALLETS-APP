@@ -12,7 +12,7 @@ const principales = [
 ];
 const otros = [
   { id: 'billing', nombre: 'Facturación', Icono: IconFileText },
-  { id: 'quotesPDF', nombre: 'Presupuestos', Icono: IconFileText },
+  { id: 'quotesPDF', nombre: 'Cotizaciones', Icono: IconFileText },
   { id: 'wallet', nombre: 'Cartera', Icono: IconFolder },
   { id: 'pallets', nombre: 'Pallets', Icono: IconLayers },
   { id: 'migration', nombre: 'Migración / respaldo', Icono: IconDownload }
