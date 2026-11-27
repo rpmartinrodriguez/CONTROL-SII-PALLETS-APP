@@ -1,7 +1,7 @@
 // Archivo: src/App.jsx
 import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { onAuthStateChanged, signInAnonymously, signOut } from "firebase/auth";
-import { collection, onSnapshot, doc, updateDoc, deleteDoc, addDoc, setDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, updateDoc, deleteDoc, addDoc, setDoc, runTransaction } from "firebase/firestore";
 import { auth, db } from './firebase';
 import { getDays, formatMoney, formatDate, getTheme, handleReportAction, getCategoryLabel, getCategoryColor } from './utils/helpers';
 import { 
@@ -27,6 +27,7 @@ const PresupuestosPDF = lazy(() => import('./pages/PresupuestosPDF'));
 const TransferenciaFirestore = lazy(() => import('./pages/TransferenciaFirestore'));
 import { conectarBasesOriginales } from './utils/conectarFirebaseOriginales';
 import { solicitarChequeoPush } from './utils/pushClient';
+import { anularCobrosDeFactura, corregirMedioCobro, MEDIOS_COBRO, nombreMedioCobro } from './utils/gestionarCobros';
 import { abrirVisorImpresion } from './utils/visorImpresion';
 
 const LOGIN_REQUIRED=import.meta.env.VITE_SII_LOGIN_REQUIRED==='true';
@@ -89,6 +90,10 @@ export default function App() {
     
     const [paymentModal, setPaymentModal] = useState({ isOpen: false, item: null, method: 'transfer', proof: '', type: 'total', amount: '' });
     const [historyModal, setHistoryModal] = useState({ isOpen: false, item: null });
+    const [edicionCobro,setEdicionCobro] = useState(null);
+    const [operandoCobro,setOperandoCobro] = useState(false);
+    const [avisoCobro,setAvisoCobro] = useState(null);
+    const [errorCobro,setErrorCobro] = useState('');
     const [rangeReportModal, setRangeReportModal] = useState({ isOpen: false, startDate: new Date().toISOString().split('T')[0], endDate: new Date().toISOString().split('T')[0] });
 
     const [payTab, setPayTab] = useState('pendientes');
@@ -1034,6 +1039,65 @@ export default function App() {
         }
     };
 
+    // Solo opera sobre facturas de Cobros. Un único documento en transacción.
+    // Anular TODOS los movimientos reabre la factura y conserva auditoría.
+    const anularCobroAction = async item => {
+        if(operandoCobro || item.type!=='collect' || item.status!=='paid')return;
+        if(!window.confirm('¿Anular todos los cobros de la factura '+(item.number||'sin número')+
+            '? La factura volverá a Pendientes por su importe total. Se conservará el registro de la anulación.'))return;
+        setOperandoCobro(true);setErrorCobro('');setAvisoCobro(null);
+        try{
+            const ref=doc(db,'cobros_public_shared','main_list','items',item.id);
+            await runTransaction(db,async tx=>{
+                const snapshot=await tx.get(ref);
+                if(!snapshot.exists())throw Error('La factura ya no existe.');
+                const cambios=anularCobrosDeFactura(snapshot.data(),auth.currentUser?.uid||'');
+                tx.update(ref,cambios);
+            });
+            setHistoryModal({isOpen:false,item:null});
+            setEdicionCobro(null);
+            setAvisoCobro({tipo:'ok',mensaje:'Se anuló el cobro de la factura '+(item.number||'')+
+                '. La factura volvió a estar pendiente por su importe total.'});
+            // No solicitarChequeoPush: una anulación o corrección administrativa NO es un nuevo cobro.
+        }catch(err){
+            const mensaje='No se pudo anular el cobro: '+(err?.message||String(err));
+            setErrorCobro(mensaje);setAvisoCobro({tipo:'error',mensaje});
+        }finally{setOperandoCobro(false);}
+    };
+    const abrirEdicionCobro = (item,indice) => {
+        if(operandoCobro || item?.type!=='collect')return;
+        const pago=item.paymentHistory?.[indice];
+        if(!pago)return;
+        setEdicionCobro({
+            id:item.id,numero:item.number||'',payee:item.payee||'',indice,
+            anterior:{date:pago.date,amount:pago.amount,method:pago.method,proof:pago.proof||''},
+            method:pago.method||'transfer',proof:String(pago.proof||'')
+        });
+        setErrorCobro('');
+    };
+    const guardarEdicionCobro = async () => {
+        if(!edicionCobro || operandoCobro)return;
+        setOperandoCobro(true);setErrorCobro('');
+        try{
+            const ref=doc(db,'cobros_public_shared','main_list','items',edicionCobro.id);
+            await runTransaction(db,async tx=>{
+                const snapshot=await tx.get(ref);
+                if(!snapshot.exists())throw Error('La factura ya no existe.');
+                const cambios=corregirMedioCobro(snapshot.data(),edicionCobro.indice,
+                    edicionCobro.anterior,{method:edicionCobro.method,proof:edicionCobro.proof},
+                    auth.currentUser?.uid||'');
+                tx.update(ref,cambios);
+            });
+            setEdicionCobro(null);
+            setAvisoCobro({tipo:'ok',mensaje:'Medio de cobro actualizado en la factura '+
+                (edicionCobro.numero||'')+' sin modificar el saldo ni enviar notificaciones.'});
+        }catch(err){setErrorCobro('No se pudo corregir el cobro: '+(err?.message||String(err)));}
+        finally{setOperandoCobro(false);}
+    };
+    const historialMostrado=historyModal.item?.type==='collect'
+        ?collectItems.find(x=>x.id===historyModal.item.id)||historyModal.item
+        :historyModal.item;
+
     const markFullPaymentAction = async (item) => { setPaymentModal({ isOpen: true, item: item, method: 'transfer', proof: '', type: 'total', amount: '' }); };
     const markPartialPaymentAction = async (item) => { setPaymentModal({ isOpen: true, item: item, method: 'transfer', proof: '', type: 'partial', amount: '' }); };
     
@@ -1220,6 +1284,9 @@ export default function App() {
                         markFullPayment={markFullPaymentAction}
                         markPartialPayment={markPartialPaymentAction}
                         setHistoryModal={setHistoryModal}
+                        anularCobro={anularCobroAction}
+                        operandoCobro={operandoCobro}
+                        avisoCobro={avisoCobro}
                         deleteItem={deleteItemAction}
                         handleEdit={handleEditAction}
                         groupedView={groupedView}
