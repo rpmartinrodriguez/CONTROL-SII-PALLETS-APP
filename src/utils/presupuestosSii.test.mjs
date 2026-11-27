@@ -45,6 +45,7 @@ test('No se toma el número del ejemplo previo como fijo y nombres son seguros',
  assert.equal(numeroCotizacion(510),'0005-00000510');
  const name=nombreArchivo({...quote,cliente:{razonSocial:'Cliente / Ñandú S.A.'}});
  assert.ok(name.endsWith('.pdf'));
+ assert.ok(name.startsWith('SII_Cotizacion_'));
  assert.ok(!name.includes('/'));
 });
 test('Datos fijos del emisor y formato ARS',()=>{
