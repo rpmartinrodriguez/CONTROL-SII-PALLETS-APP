@@ -31,6 +31,7 @@ test('presupuesto nuevo y pagos avanzados no requieren escanear colecciones',()=
     guardadoEn:{toMillis:()=>now},totalCentavos:100000,cliente:{razonSocial:'Cliente'}
   },now);
   assert.equal(presupuesto.category,'new_quote');
+  assert.equal(presupuesto.title,'Nueva cotización registrada');
   assert.match(presupuesto.body,/0005-00000555/);
   assert.equal(eventForMovement('presupuesto','0005-00000555','payment',{},now),null);
   const avanzado=eventForMovement('pago_avanzado','78','payment',{
