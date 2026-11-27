@@ -109,7 +109,7 @@ export default function PresupuestosPDF() {
       normalizarBusqueda(c.razonSocial)===normalizarBusqueda(original.cliente?.razonSocial))?.id||'');
     setPreciosParaRevisar(copia.items.map(x=>x.id));
     setMostrarGuardados(false);setError('');
-    setNotice('Cotización '+original.numero+' copiado como '+numero+'. Revisá los precios marcados en rojo antes de emitir el nuevo PDF.');
+    setNotice('Cotización '+original.numero+' copiada como '+numero+'. Revisá los precios marcados en rojo antes de emitir el nuevo PDF.');
     requestAnimationFrame(()=>document.getElementById('sii-presupuesto-editor')?.scrollIntoView({behavior:'smooth',block:'start'}));
   };
   const sugeridos=useMemo(()=>clientes.filter(c=>coincideCliente(c,quote.cliente.razonSocial)).slice(0,7),[clientes,quote.cliente.razonSocial]);
@@ -194,7 +194,7 @@ export default function PresupuestosPDF() {
     try{
       await deleteDoc(doc(db,'historial_presupuestos_sii',p.numero));
       if(editandoNumero===p.numero){setEditandoNumero('');setGuardadoVersion('');setNumeroAutomatico(true);setQuote(initial());}
-      setNotice('Cotización '+p.numero+' eliminado del historial.');
+      setNotice('Cotización '+p.numero+' eliminada del historial.');
     }catch(err){setError('No se pudo borrar: '+err.message);}
     finally{envioEnCurso.current=false;setBusy('');}
   };
@@ -225,8 +225,8 @@ export default function PresupuestosPDF() {
         if(gestionModal.grupoClave)setClienteGuardadoAbierto('realizados:'+gestionModal.grupoClave);
       }
       setGestionMensaje(gestionModal.modo==='realizar'
-        ?'Cotización '+gestionModal.numero+' marcado como realizado.'
-        :'Nota de gestión dla cotización '+gestionModal.numero+' actualizada.');
+        ?'Cotización '+gestionModal.numero+' marcada como realizado.'
+        :'Nota de gestión de la cotización '+gestionModal.numero+' actualizada.');
       setGestionModal(null);setNotaGestion('');
     }catch(err){
       setGestionError('No se pudo guardar el estado: '+(err?.message||String(err)));
@@ -244,7 +244,7 @@ export default function PresupuestosPDF() {
       });
       setVistaGuardados('pendientes');
       if(grupo)setClienteGuardadoAbierto('pendientes:'+grupo.clave);
-      setGestionMensaje('Cotización '+p.numero+' devuelto a Pendientes. La nota interna se conservó.');
+      setGestionMensaje('Cotización '+p.numero+' devuelta a Pendientes. La nota interna se conservó.');
     }catch(err){
       setGestionError('No se pudo volver a pendientes: '+(err?.message||String(err)));
     }finally{envioEnCurso.current=false;setBusy('');}
@@ -266,7 +266,7 @@ export default function PresupuestosPDF() {
       if(ventana&&!ventana.closed){
         ventana.location.href=url;
         ventana.focus();
-        setNotice('Se abrió el PDF original '+p.numero+' para reimprimir, sin crear otro presupuesto.');
+        setNotice('Se abrió el PDF original '+p.numero+' para reimprimir, sin crear otra cotización.');
       }else{
         descargarPdf(blob,filename);
         setNotice('El navegador bloqueó la vista de impresión. Se descargó el PDF original '+p.numero+'.');
@@ -317,7 +317,7 @@ export default function PresupuestosPDF() {
     setClienteId('');setSugerencias(false);setPreciosParaRevisar([]);
     setNumeroAutomatico(true);setEditandoNumero('');setGuardadoVersion('');
     setQuote({...initial(),numero:numeroCotizacion(n)});
-    setError('');setNotice('Nuevo presupuesto listo.');
+    setError('');setNotice('Nueva cotización lista.');
   };
   const cancelarPresupuesto=()=>{
     if(envioEnCurso.current)return;
@@ -327,7 +327,7 @@ export default function PresupuestosPDF() {
     setNumeroAutomatico(true);
     setEditandoNumero('');setGuardadoVersion('');setClienteId('');
     setPreciosParaRevisar([]);setSugerencias(false);setError('');
-    setNotice('Cotización cancelado. El formulario quedó limpio y no se guardó nada.');
+    setNotice('Cotización cancelada. El formulario quedó limpio y no se guardó nada.');
     window.__siiBudgetDraftDirty=false;
   };
   const run=async(action)=>{
@@ -351,7 +351,7 @@ export default function PresupuestosPDF() {
       });
       if(guardadoVersion===fingerprint||mismoContenido) {
         const pdf=await generarPdfPresupuesto(presupuesto);
-        if(action==='download'){descargarPdf(pdf.blob,pdf.filename);setNotice('PDF descargado nuevamente, sin duplicar el presupuesto.');}
+        if(action==='download'){descargarPdf(pdf.blob,pdf.filename);setNotice('PDF descargado nuevamente, sin duplicar la cotización.');}
         else if(navigator.share){
           const file=new File([pdf.blob],pdf.filename,{type:'application/pdf'});
           if(!navigator.canShare||navigator.canShare({files:[file]})){
@@ -401,7 +401,7 @@ export default function PresupuestosPDF() {
             await navigator.share({title:'Cotización SII PALLETS',text:'Adjunto cotización comercial.',files:[file]});
             setNotice('Se abrió la opción de compartir la cotización '+presupuesto.numero+'.');
           }catch(err){
-            if(err?.name==='AbortError'){setNotice('Compartir cancelado. El presupuesto '+presupuesto.numero+' quedó registrado.');}
+            if(err?.name==='AbortError'){setNotice('Compartir cancelado. La cotización '+presupuesto.numero+' quedó registrada.');}
             else throw err;
           }
         }else{
@@ -422,19 +422,19 @@ export default function PresupuestosPDF() {
       <div className="flex flex-wrap gap-2 w-full sm:w-auto">
         <button type="button" onClick={()=>setMostrarGuardados(v=>!v)} aria-expanded={mostrarGuardados}
           className={'sii-pro-button-secondary flex-1 sm:flex-none '+(mostrarGuardados?'!bg-blue-50 !border-blue-300':'')}>
-          {mostrarGuardados?'Ocultar presupuestos':'Cotizaciones guardados'} <span className="ml-1 text-xs opacity-70">({historial.length})</span>
+          {mostrarGuardados?'Ocultar cotizaciones':'Cotizaciones guardadas'} <span className="ml-1 text-xs opacity-70">({historial.length})</span>
         </button>
-        <button type="button" onClick={newQuote} className="sii-pro-button-primary flex-1 sm:flex-none">+ Nuevo presupuesto</button>
+        <button type="button" onClick={newQuote} className="sii-pro-button-primary flex-1 sm:flex-none">+ Nueva cotización</button>
       </div>
     </div>
     {mostrarGuardados && <section className="bg-white border border-slate-200 rounded-3xl shadow-sm p-4 sm:p-6 space-y-4" aria-label="Tablero de cotizaciones guardadas">
       <div>
-        <h3 className="text-lg font-black text-slate-900">Seguimiento de presupuestos</h3>
-        <p className="text-xs text-slate-500 mt-1">Organizá los cotizaciones por estado y cliente. Los guardados anteriores aparecen como Pendientes hasta que los marques como Realizados.</p>
+        <h3 className="text-lg font-black text-slate-900">Seguimiento de cotizaciones</h3>
+        <p className="text-xs text-slate-500 mt-1">Organizá las cotizaciones por estado y cliente. Las cotizaciones anteriores aparecen como Pendientes hasta que los marques como Realizados.</p>
       </div>
       {gestionMensaje&&<p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 p-3 text-sm">{gestionMensaje}</p>}
       {gestionError&&!gestionModal&&<p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 text-rose-700 p-3 text-sm">{gestionError}</p>}
-      <div className="grid grid-cols-2 gap-2 lg:hidden" role="tablist" aria-label="Estado de presupuestos">
+      <div className="grid grid-cols-2 gap-2 lg:hidden" role="tablist" aria-label="Estado de cotizaciones">
         {[{id:'pendientes',titulo:'Pendientes'},{id:'realizados',titulo:'Realizados'}].map(c=><button
           key={c.id} type="button" role="tab" aria-selected={vistaGuardados===c.id}
           onClick={()=>{setVistaGuardados(c.id);setClienteGuardadoAbierto('');}}
@@ -457,7 +457,7 @@ export default function PresupuestosPDF() {
               <span className="rounded-full bg-white border border-slate-200 px-2.5 py-1 text-xs font-black text-slate-700">{tablero[columna.id].total}</span>
             </div>
             {tablero[columna.id].grupos.length===0
-              ? <p className="text-sm text-slate-500 bg-white border border-dashed border-slate-200 rounded-xl p-4">No hay presupuestos {columna.id}.</p>
+              ? <p className="text-sm text-slate-500 bg-white border border-dashed border-slate-200 rounded-xl p-4">No hay cotizaciones {columna.id}.</p>
               : <div className="space-y-2">
                 {tablero[columna.id].grupos.map(grupo=>{
                   const clave=columna.id+':'+grupo.clave;
@@ -468,7 +468,7 @@ export default function PresupuestosPDF() {
                       className="w-full flex items-center justify-between gap-3 px-3 py-3 bg-white hover:bg-slate-50 text-left">
                       <div className="min-w-0">
                         <strong className="text-sm text-slate-900 break-words">{grupo.nombre}</strong>
-                        <p className="text-xs text-slate-500 mt-0.5">{grupo.presupuestos.length} presupuesto(s)</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{grupo.presupuestos.length} cotización(es)</p>
                       </div>
                       <span className="text-blue-700 font-black text-xl shrink-0" aria-hidden="true">{abierto?'−':'+'}</span>
                     </button>
@@ -532,7 +532,7 @@ export default function PresupuestosPDF() {
         className="w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl bg-white p-5 sm:p-6 shadow-2xl space-y-4">
         <div>
           <h3 id="sii-gestion-presupuesto-titulo" className="text-lg font-black text-slate-900">
-            {gestionModal.modo==='realizar'?'Marcar presupuesto como realizado':'Editar nota de gestión'}
+            {gestionModal.modo==='realizar'?'Marcar cotización como realizada':'Editar nota de gestión'}
           </h3>
           <p className="text-sm text-slate-500 mt-1">{gestionModal.numero} · {gestionModal.cliente}</p>
         </div>
@@ -560,7 +560,7 @@ export default function PresupuestosPDF() {
         <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
           <div className="flex items-center justify-between gap-3"><h3 className="font-extrabold text-slate-800">1. Datos de la cotización</h3><span className="text-[11px] text-slate-500">Datos del emisor fijos</span></div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <label><span className={label}>N° de presupuesto</span><input className={input} value={quote.numero} onChange={e=>{setNumeroAutomatico(false);setQuote(q=>({...q,numero:e.target.value}));}} placeholder="0005-00000502" maxLength={13}/></label>
+            <label><span className={label}>N° de cotización</span><input className={input} value={quote.numero} onChange={e=>{setNumeroAutomatico(false);setQuote(q=>({...q,numero:e.target.value}));}} placeholder="0005-00000502" maxLength={13}/></label>
             <label><span className={label}>Fecha de emisión</span><input className={input} type="date" value={quote.fecha} onChange={e=>setQuote(q=>({...q,fecha:e.target.value}))}/></label>
           </div>
           <p className="text-[11px] text-slate-500">{userNotice}</p>
@@ -650,8 +650,8 @@ export default function PresupuestosPDF() {
               <div className="text-right text-sm font-bold text-slate-800">Subtotal: {totals.data?.lineas.find(x=>x.id===row.id) ? peso(totals.data.lineas.find(x=>x.id===row.id).subtotalCentavos) : '—'}</div>
             </div>)}
           </div>
-          <label className="block border-t border-slate-100 pt-3"><span className={label}>Nota dla cotización (opcional)</span>
-            <textarea className={input} maxLength={100} rows={2} placeholder="Observación para incluir en el presupuesto" value={quote.nota||''} onChange={e=>setQuote(q=>({...q,nota:e.target.value.slice(0,100)}))}/>
+          <label className="block border-t border-slate-100 pt-3"><span className={label}>Nota de la cotización (opcional)</span>
+            <textarea className={input} maxLength={100} rows={2} placeholder="Observación para incluir en la cotización" value={quote.nota||''} onChange={e=>setQuote(q=>({...q,nota:e.target.value.slice(0,100)}))}/>
             <span className="text-xs text-slate-500">{(quote.nota||'').length}/100 caracteres</span>
           </label>
           {presupuestosCliente.length>0&&<div className="rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-2"><strong className="text-sm text-slate-900">Cotizaciones anteriores de este cliente</strong>{resumenCliente(presupuestosCliente)}</div>}
