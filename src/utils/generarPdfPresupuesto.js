@@ -1,5 +1,5 @@
 import { EMISOR, fechaAR, pesosPDF, validarPresupuesto, nombreArchivo } from '../utils/presupuestosSii';
-import { LOGO_PRESUPUESTO } from '../assets/logoPresupuesto';
+import { LOGO_COTIZACIÓN } from '../assets/logoPresupuesto';
 
 const MM={ancho:210,alto:297,izquierda:8,derecha:202};
 const t=(pdf,text,x,y,size=8,options={})=>{
@@ -56,7 +56,7 @@ function primeraPagina(pdf,quote,logo) {
   t(pdf,EMISOR.localidad,10.5,62,6.7);
   t(pdf,'Condición frente al IVA: '+EMISOR.iva,10.5,66,6.6);
   t(pdf,'Tel.: '+EMISOR.telefono,10.5,70.2,6.5);
-  t(pdf,'PRESUPUESTO',154,28,13,{bold:true,align:'center'});
+  t(pdf,'COTIZACIÓN',154,28,13,{bold:true,align:'center'});
   t(pdf,'Compr. Nro.: '+quote.numero,111,37,8,{bold:true});
   t(pdf,'Fecha de Emisión: '+fechaAR(quote.fecha),111,43,8);
   t(pdf,'CUIT: '+EMISOR.cuit,111,51,8,{bold:true});
@@ -76,7 +76,7 @@ function paginaSiguiente(pdf,quote,page) {
   pdf.addPage('a4','p');
   pdf.setDrawColor(60,72,90);pdf.setLineWidth(.25);
   pdf.rect(8,8,194,281);
-  t(pdf,'SII PALLETS · PRESUPUESTO '+quote.numero,10,15,9,{bold:true});
+  t(pdf,'SII PALLETS · COTIZACIÓN '+quote.numero,10,15,9,{bold:true});
   t(pdf,'Continuación · página '+page,200,15,7,{align:'right'});
   pdf.line(8,20,202,20);
   dibujarCabeceraTabla(pdf,24);
@@ -119,7 +119,7 @@ export async function generarPdfPresupuesto(data) {
   const totals=validarPresupuesto(data);
   const [{jsPDF},logo]=await Promise.all([import('jspdf'),imagenLogoPNG()]);
   const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4',compress:true});
-  pdf.setProperties({title:'Presupuesto '+data.numero,subject:'Presupuesto comercial SII PALLETS',author:EMISOR.razonSocial});
+  pdf.setProperties({title:'Cotización '+data.numero,subject:'Cotización comercial SII PALLETS',author:EMISOR.razonSocial});
   let y=primeraPagina(pdf,data,logo),page=1;
   for(let i=0;i<totals.lineas.length;i++){
     const row=totals.lineas[i];
