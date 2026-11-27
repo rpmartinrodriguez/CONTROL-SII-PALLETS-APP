@@ -184,7 +184,7 @@ export default function PresupuestosPDF() {
     setEditandoNumero(p.numero);
     setNumeroAutomatico(false);setGuardadoVersion('');
     setQuote(editable);setClienteId(p.clienteId||'');
-    setPreciosParaRevisar([]);setError('');setNotice('Editando '+p.numero+'. La próxima emisión actualizará este mismo presupuesto.');
+    setPreciosParaRevisar([]);setError('');setNotice('Editando '+p.numero+'. La próxima emisión actualizará esta misma cotización.');
     requestAnimationFrame(()=>document.getElementById('sii-presupuesto-editor')?.scrollIntoView({behavior:'smooth',block:'start'}));
   };
   const borrarGuardado=async p=>{
@@ -225,7 +225,7 @@ export default function PresupuestosPDF() {
         if(gestionModal.grupoClave)setClienteGuardadoAbierto('realizados:'+gestionModal.grupoClave);
       }
       setGestionMensaje(gestionModal.modo==='realizar'
-        ?'Cotización '+gestionModal.numero+' marcada como realizado.'
+        ?'Cotización '+gestionModal.numero+' marcada como realizada.'
         :'Nota de gestión de la cotización '+gestionModal.numero+' actualizada.');
       setGestionModal(null);setNotaGestion('');
     }catch(err){
@@ -378,7 +378,7 @@ export default function PresupuestosPDF() {
       }
       if(!resultado)throw new Error('No se pudo asignar un número libre. Volvé a intentar.');
       // Se despierta el motor de avisos únicamente en una emisión nueva.
-      // Si el servicio no está disponible, la cotización ya guardado no se revierte.
+      // Si el servicio no está disponible, la cotización ya guardada no se revierte.
       if(!existente && !editandoNumero){
         solicitarChequeoPush({kind:'presupuesto',id:presupuesto.numero,action:'create'});
       }
@@ -430,7 +430,7 @@ export default function PresupuestosPDF() {
     {mostrarGuardados && <section className="bg-white border border-slate-200 rounded-3xl shadow-sm p-4 sm:p-6 space-y-4" aria-label="Tablero de cotizaciones guardadas">
       <div>
         <h3 className="text-lg font-black text-slate-900">Seguimiento de cotizaciones</h3>
-        <p className="text-xs text-slate-500 mt-1">Organizá las cotizaciones por estado y cliente. Las cotizaciones anteriores aparecen como Pendientes hasta que los marques como Realizados.</p>
+        <p className="text-xs text-slate-500 mt-1">Organizá las cotizaciones por estado y cliente. Las cotizaciones anteriores aparecen como Pendientes hasta que las marques como Realizadas.</p>
       </div>
       {gestionMensaje&&<p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 p-3 text-sm">{gestionMensaje}</p>}
       {gestionError&&!gestionModal&&<p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 text-rose-700 p-3 text-sm">{gestionError}</p>}
