@@ -273,7 +273,7 @@ export default function Pallets({ theme, produccionMensual, costosMadres, pallet
                     }} 
                     className={`flex-1 py-2 rounded-lg transition-all ${palletTab === 'presupuestos' ? 'bg-white text-teal-800 shadow-sm' : 'text-teal-600 hover:bg-teal-50'}`}
                 >
-                    Presupuestar
+                    Cotizar
                 </button>
             </div>
 
