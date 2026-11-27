@@ -53,7 +53,7 @@ export default function PresupuestosPDF() {
   const [gestionError,setGestionError]=useState('');
   const [gestionMensaje,setGestionMensaje]=useState('');
   const [preciosParaRevisar,setPreciosParaRevisar]=useState([]);
-  // Impide que una actualización de la PWA borre un presupuesto sin emitir.
+  // Impide que una actualización de la PWA borre una cotización sin emitir.
   const borradorSinGuardar=useMemo(()=>{
     const tieneDatos=Boolean(quote.cliente.razonSocial?.trim()||quote.nota?.trim()||
       quote.items.some(i=>i.descripcion?.trim()||i.codigo?.trim()||String(i.precioUnitario||'').trim()));
@@ -109,7 +109,7 @@ export default function PresupuestosPDF() {
       normalizarBusqueda(c.razonSocial)===normalizarBusqueda(original.cliente?.razonSocial))?.id||'');
     setPreciosParaRevisar(copia.items.map(x=>x.id));
     setMostrarGuardados(false);setError('');
-    setNotice('Presupuesto '+original.numero+' copiado como '+numero+'. Revisá los precios marcados en rojo antes de emitir el nuevo PDF.');
+    setNotice('Cotización '+original.numero+' copiado como '+numero+'. Revisá los precios marcados en rojo antes de emitir el nuevo PDF.');
     requestAnimationFrame(()=>document.getElementById('sii-presupuesto-editor')?.scrollIntoView({behavior:'smooth',block:'start'}));
   };
   const sugeridos=useMemo(()=>clientes.filter(c=>coincideCliente(c,quote.cliente.razonSocial)).slice(0,7),[clientes,quote.cliente.razonSocial]);
@@ -170,7 +170,7 @@ export default function PresupuestosPDF() {
         if(editandoNumero===presupuesto.numero){
           transaccion.update(referencia,{...original,actualizadoEn:serverTimestamp()});
         }else if(JSON.stringify({...anterior,guardadoEn:undefined,actualizadoEn:undefined,nota:anterior.nota||''})!==JSON.stringify({...original,guardadoEn:undefined,actualizadoEn:undefined})){
-          const error=new Error('Número de presupuesto ocupado');
+          const error=new Error('Número de cotización ocupado');
           error.code='PRESUPUESTO_OCUPADO';
           throw error;
         }
@@ -189,12 +189,12 @@ export default function PresupuestosPDF() {
   };
   const borrarGuardado=async p=>{
     if(envioEnCurso.current)return;
-    if(!window.confirm('¿Eliminar el presupuesto '+p.numero+' de '+(p.cliente?.razonSocial||'este cliente')+'? Esta acción no se puede deshacer.'))return;
+    if(!window.confirm('¿Eliminar la cotización '+p.numero+' de '+(p.cliente?.razonSocial||'este cliente')+'? Esta acción no se puede deshacer.'))return;
     envioEnCurso.current=true;setBusy('delete');setError('');
     try{
       await deleteDoc(doc(db,'historial_presupuestos_sii',p.numero));
       if(editandoNumero===p.numero){setEditandoNumero('');setGuardadoVersion('');setNumeroAutomatico(true);setQuote(initial());}
-      setNotice('Presupuesto '+p.numero+' eliminado del historial.');
+      setNotice('Cotización '+p.numero+' eliminado del historial.');
     }catch(err){setError('No se pudo borrar: '+err.message);}
     finally{envioEnCurso.current=false;setBusy('');}
   };
@@ -225,8 +225,8 @@ export default function PresupuestosPDF() {
         if(gestionModal.grupoClave)setClienteGuardadoAbierto('realizados:'+gestionModal.grupoClave);
       }
       setGestionMensaje(gestionModal.modo==='realizar'
-        ?'Presupuesto '+gestionModal.numero+' marcado como realizado.'
-        :'Nota de gestión del presupuesto '+gestionModal.numero+' actualizada.');
+        ?'Cotización '+gestionModal.numero+' marcado como realizado.'
+        :'Nota de gestión dla cotización '+gestionModal.numero+' actualizada.');
       setGestionModal(null);setNotaGestion('');
     }catch(err){
       setGestionError('No se pudo guardar el estado: '+(err?.message||String(err)));
@@ -244,7 +244,7 @@ export default function PresupuestosPDF() {
       });
       setVistaGuardados('pendientes');
       if(grupo)setClienteGuardadoAbierto('pendientes:'+grupo.clave);
-      setGestionMensaje('Presupuesto '+p.numero+' devuelto a Pendientes. La nota interna se conservó.');
+      setGestionMensaje('Cotización '+p.numero+' devuelto a Pendientes. La nota interna se conservó.');
     }catch(err){
       setGestionError('No se pudo volver a pendientes: '+(err?.message||String(err)));
     }finally{envioEnCurso.current=false;setBusy('');}
@@ -321,13 +321,13 @@ export default function PresupuestosPDF() {
   };
   const cancelarPresupuesto=()=>{
     if(envioEnCurso.current)return;
-    if(borradorSinGuardar && !window.confirm('¿Cancelar este presupuesto y descartar todos los cambios sin guardar?'))return;
+    if(borradorSinGuardar && !window.confirm('¿Cancelar esta cotización y descartar todos los cambios sin guardar?'))return;
     const n=proximoNumeroDisponible(historial,COTIZACION_INICIO,getSequence());
     setQuote({...initial(),numero:numeroCotizacion(n)});
     setNumeroAutomatico(true);
     setEditandoNumero('');setGuardadoVersion('');setClienteId('');
     setPreciosParaRevisar([]);setSugerencias(false);setError('');
-    setNotice('Presupuesto cancelado. El formulario quedó limpio y no se guardó nada.');
+    setNotice('Cotización cancelado. El formulario quedó limpio y no se guardó nada.');
     window.__siiBudgetDraftDirty=false;
   };
   const run=async(action)=>{
@@ -355,7 +355,7 @@ export default function PresupuestosPDF() {
         else if(navigator.share){
           const file=new File([pdf.blob],pdf.filename,{type:'application/pdf'});
           if(!navigator.canShare||navigator.canShare({files:[file]})){
-            try{await navigator.share({title:'Presupuesto SII PALLETS',files:[file]});}
+            try{await navigator.share({title:'Cotización SII PALLETS',files:[file]});}
             catch(err){if(err?.name!=='AbortError')throw err;}
           }else descargarPdf(pdf.blob,pdf.filename);
         }else descargarPdf(pdf.blob,pdf.filename);
@@ -378,7 +378,7 @@ export default function PresupuestosPDF() {
       }
       if(!resultado)throw new Error('No se pudo asignar un número libre. Volvé a intentar.');
       // Se despierta el motor de avisos únicamente en una emisión nueva.
-      // Si el servicio no está disponible, el presupuesto ya guardado no se revierte.
+      // Si el servicio no está disponible, la cotización ya guardado no se revierte.
       if(!existente && !editandoNumero){
         solicitarChequeoPush({kind:'presupuesto',id:presupuesto.numero,action:'create'});
       }
@@ -398,8 +398,8 @@ export default function PresupuestosPDF() {
         const file=new File([blob],filename,{type:'application/pdf'});
         if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
           try{
-            await navigator.share({title:'Presupuesto SII PALLETS',text:'Adjunto presupuesto comercial.',files:[file]});
-            setNotice('Se abrió la opción de compartir el presupuesto '+presupuesto.numero+'.');
+            await navigator.share({title:'Cotización SII PALLETS',text:'Adjunto cotización comercial.',files:[file]});
+            setNotice('Se abrió la opción de compartir la cotización '+presupuesto.numero+'.');
           }catch(err){
             if(err?.name==='AbortError'){setNotice('Compartir cancelado. El presupuesto '+presupuesto.numero+' quedó registrado.');}
             else throw err;
@@ -409,28 +409,28 @@ export default function PresupuestosPDF() {
           setNotice('PDF '+presupuesto.numero+' descargado. Adjuntalo desde WhatsApp o tu correo.');
         }
       }
-    }catch(err){setError(err?.message||'No se pudo generar el presupuesto.');}
+    }catch(err){setError(err?.message||'No se pudo generar la cotización.');}
     finally{envioEnCurso.current=false;setBusy('');}
   };
 
   return <div className="animate-fade-in mx-auto max-w-[1700px] space-y-4">
     <div className="flex items-center justify-between flex-wrap gap-2">
       <div>
-        <h2 className="text-2xl sm:text-3xl font-black text-slate-800">Presupuestos</h2>
-        <p className="text-sm text-slate-500 mt-1">Generá presupuestos en PDF con el formato comercial de SII PALLETS.</p>
+        <h2 className="text-2xl sm:text-3xl font-black text-slate-800">Cotizaciones</h2>
+        <p className="text-sm text-slate-500 mt-1">Generá cotizaciones en PDF con el formato comercial de SII PALLETS.</p>
       </div>
       <div className="flex flex-wrap gap-2 w-full sm:w-auto">
         <button type="button" onClick={()=>setMostrarGuardados(v=>!v)} aria-expanded={mostrarGuardados}
           className={'sii-pro-button-secondary flex-1 sm:flex-none '+(mostrarGuardados?'!bg-blue-50 !border-blue-300':'')}>
-          {mostrarGuardados?'Ocultar presupuestos':'Presupuestos guardados'} <span className="ml-1 text-xs opacity-70">({historial.length})</span>
+          {mostrarGuardados?'Ocultar presupuestos':'Cotizaciones guardados'} <span className="ml-1 text-xs opacity-70">({historial.length})</span>
         </button>
         <button type="button" onClick={newQuote} className="sii-pro-button-primary flex-1 sm:flex-none">+ Nuevo presupuesto</button>
       </div>
     </div>
-    {mostrarGuardados && <section className="bg-white border border-slate-200 rounded-3xl shadow-sm p-4 sm:p-6 space-y-4" aria-label="Tablero de presupuestos guardados">
+    {mostrarGuardados && <section className="bg-white border border-slate-200 rounded-3xl shadow-sm p-4 sm:p-6 space-y-4" aria-label="Tablero de cotizaciones guardadas">
       <div>
         <h3 className="text-lg font-black text-slate-900">Seguimiento de presupuestos</h3>
-        <p className="text-xs text-slate-500 mt-1">Organizá los presupuestos por estado y cliente. Los guardados anteriores aparecen como Pendientes hasta que los marques como Realizados.</p>
+        <p className="text-xs text-slate-500 mt-1">Organizá los cotizaciones por estado y cliente. Los guardados anteriores aparecen como Pendientes hasta que los marques como Realizados.</p>
       </div>
       {gestionMensaje&&<p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 p-3 text-sm">{gestionMensaje}</p>}
       {gestionError&&!gestionModal&&<p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 text-rose-700 p-3 text-sm">{gestionError}</p>}
@@ -543,7 +543,7 @@ export default function PresupuestosPDF() {
             value={notaGestion} onChange={e=>setNotaGestion(e.target.value.slice(0,500))}/>
           <span className="text-xs text-slate-500">{notaGestion.length}/500 caracteres · Podés dejar este campo vacío</span>
         </label>
-        <p className="text-xs text-slate-600">Este dato se guarda para seguimiento comercial. No modifica el presupuesto ni aparece en su PDF.</p>
+        <p className="text-xs text-slate-600">Este dato se guarda para seguimiento comercial. No modifica la cotización ni aparece en su PDF.</p>
         {gestionError&&<p role="alert" className="text-sm rounded-xl bg-rose-50 text-rose-800 p-3">{gestionError}</p>}
         <div className="flex gap-2 justify-end">
           <button type="button" disabled={!!busy} onClick={()=>{setGestionModal(null);setGestionError('');}}
@@ -558,7 +558,7 @@ export default function PresupuestosPDF() {
     <div id="sii-presupuesto-editor" className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-4 items-start">
       <section className="space-y-4 min-w-0">
         <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between gap-3"><h3 className="font-extrabold text-slate-800">1. Datos del presupuesto</h3><span className="text-[11px] text-slate-500">Datos del emisor fijos</span></div>
+          <div className="flex items-center justify-between gap-3"><h3 className="font-extrabold text-slate-800">1. Datos de la cotización</h3><span className="text-[11px] text-slate-500">Datos del emisor fijos</span></div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label><span className={label}>N° de presupuesto</span><input className={input} value={quote.numero} onChange={e=>{setNumeroAutomatico(false);setQuote(q=>({...q,numero:e.target.value}));}} placeholder="0005-00000502" maxLength={13}/></label>
             <label><span className={label}>Fecha de emisión</span><input className={input} type="date" value={quote.fecha} onChange={e=>setQuote(q=>({...q,fecha:e.target.value}))}/></label>
@@ -611,7 +611,7 @@ export default function PresupuestosPDF() {
             <label><span className={label}>Teléfono (opcional)</span><input className={input} inputMode="tel" value={quote.cliente.telefono} onChange={e=>setCustomer('telefono',e.target.value)}/></label>
             <label><span className={label}>Correo (opcional)</span><input className={input} type="email" value={quote.cliente.email} onChange={e=>setCustomer('email',e.target.value)} placeholder="cliente@empresa.com"/></label>
           </div>
-          {presupuestosCliente.length>0&&<div className="rounded-xl border border-blue-200 bg-blue-50/50 p-3 space-y-2"><strong className="text-sm text-blue-900">Presupuestos anteriores ({presupuestosCliente.length})</strong>{resumenCliente(presupuestosCliente)}</div>}
+          {presupuestosCliente.length>0&&<div className="rounded-xl border border-blue-200 bg-blue-50/50 p-3 space-y-2"><strong className="text-sm text-blue-900">Cotizaciones anteriores ({presupuestosCliente.length})</strong>{resumenCliente(presupuestosCliente)}</div>}
           <button type="button" disabled={guardandoCliente} onClick={guardarCliente}
             className="rounded-xl bg-blue-700 hover:bg-blue-800 text-white px-4 py-3 text-sm font-bold disabled:opacity-50">
             {guardandoCliente?'Guardando…':clienteId?'Actualizar ficha del cliente':'Guardar cliente en la base'}
@@ -642,7 +642,7 @@ export default function PresupuestosPDF() {
                 <div className="min-w-0">
                   <span className="text-[11px] font-bold uppercase tracking-wide text-blue-800">Último precio a este cliente</span>
                   <p className="text-sm font-black text-slate-900">{peso(Math.round(preciosPrevios[row.id].precioUnitario*100))} / unidad</p>
-                  <p className="text-xs text-slate-600">Presupuesto {preciosPrevios[row.id].numero} · {fechaAR(preciosPrevios[row.id].fecha)} · {preciosPrevios[row.id].descripcion}</p>
+                  <p className="text-xs text-slate-600">Cotización {preciosPrevios[row.id].numero} · {fechaAR(preciosPrevios[row.id].fecha)} · {preciosPrevios[row.id].descripcion}</p>
                 </div>
                 <button type="button" className="bg-white border border-blue-300 text-blue-800 rounded-lg px-3 py-2 text-xs font-bold whitespace-nowrap"
                   onClick={()=>updateLine(row.id,'precioUnitario',String(preciosPrevios[row.id].precioUnitario))}>Usar como referencia</button>
@@ -650,11 +650,11 @@ export default function PresupuestosPDF() {
               <div className="text-right text-sm font-bold text-slate-800">Subtotal: {totals.data?.lineas.find(x=>x.id===row.id) ? peso(totals.data.lineas.find(x=>x.id===row.id).subtotalCentavos) : '—'}</div>
             </div>)}
           </div>
-          <label className="block border-t border-slate-100 pt-3"><span className={label}>Nota del presupuesto (opcional)</span>
+          <label className="block border-t border-slate-100 pt-3"><span className={label}>Nota dla cotización (opcional)</span>
             <textarea className={input} maxLength={100} rows={2} placeholder="Observación para incluir en el presupuesto" value={quote.nota||''} onChange={e=>setQuote(q=>({...q,nota:e.target.value.slice(0,100)}))}/>
             <span className="text-xs text-slate-500">{(quote.nota||'').length}/100 caracteres</span>
           </label>
-          {presupuestosCliente.length>0&&<div className="rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-2"><strong className="text-sm text-slate-900">Presupuestos anteriores de este cliente</strong>{resumenCliente(presupuestosCliente)}</div>}
+          {presupuestosCliente.length>0&&<div className="rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-2"><strong className="text-sm text-slate-900">Cotizaciones anteriores de este cliente</strong>{resumenCliente(presupuestosCliente)}</div>}
         </div>
         <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm">
           <div className="flex justify-between gap-3 text-sm mb-2"><span>Subtotal</span><strong>{totals.data?peso(totals.data.subtotalCentavos):'—'}</strong></div>
@@ -670,14 +670,14 @@ export default function PresupuestosPDF() {
             className="w-full mt-3 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 px-4 py-3 text-sm font-bold disabled:opacity-50">
             Cancelar presupuesto
           </button>
-          <p className="text-[11px] text-slate-500 mt-3">Cancelar limpia el formulario sin guardar. Si estabas editando un presupuesto anterior, se conserva su última versión guardada.</p>
+          <p className="text-[11px] text-slate-500 mt-3">Cancelar limpia el formulario sin guardar. Si estabas editando una cotización anterior, se conserva su última versión guardada.</p>
           <p className="text-[11px] text-slate-500 mt-2">En celulares compatibles, «Compartir PDF» abre el menú del dispositivo para elegir WhatsApp, correo u otra app. Si no admite adjuntar archivos, descargá el PDF y adjuntalo manualmente.</p>
         </div>
       </section>
 
       <section className="min-w-0 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden xl:sticky xl:top-3">
         <div className="flex justify-between items-center gap-2 px-4 py-3 border-b">
-          <h3 className="font-bold text-slate-800">Vista previa del presupuesto</h3>
+          <h3 className="font-bold text-slate-800">Vista previa de la cotización</h3>
           <button type="button" onClick={()=>setShowPreview(v=>!v)} className="text-xs font-bold text-blue-800">{showPreview?'Ocultar':'Mostrar'}</button>
         </div>
         {showPreview&&<div className="overflow-x-auto p-2 bg-slate-100">
@@ -698,7 +698,7 @@ export default function PresupuestosPDF() {
                 </div>
               </div>
               <div className="p-2">
-                <h3 className="text-center text-base font-black mt-1 mb-4">PRESUPUESTO</h3>
+                <h3 className="text-center text-base font-black mt-1 mb-4">COTIZACIÓN</h3>
                 <div className="text-[10px] leading-5">
                   <p><strong>Compr. Nro.:</strong> {quote.numero}</p>
                   <p><strong>Fecha de Emisión:</strong> {fechaAR(quote.fecha)}</p>
