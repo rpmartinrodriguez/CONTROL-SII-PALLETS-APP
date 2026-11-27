@@ -668,7 +668,7 @@ export default function PresupuestosPDF() {
           </div>
           <button type="button" disabled={!!busy} onClick={cancelarPresupuesto}
             className="w-full mt-3 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 px-4 py-3 text-sm font-bold disabled:opacity-50">
-            Cancelar presupuesto
+            Cancelar cotización
           </button>
           <p className="text-[11px] text-slate-500 mt-3">Cancelar limpia el formulario sin guardar. Si estabas editando una cotización anterior, se conserva su última versión guardada.</p>
           <p className="text-[11px] text-slate-500 mt-2">En celulares compatibles, «Compartir PDF» abre el menú del dispositivo para elegir WhatsApp, correo u otra app. Si no admite adjuntar archivos, descargá el PDF y adjuntalo manualmente.</p>
