@@ -1077,6 +1077,12 @@ export default function App() {
     };
     const guardarEdicionCobro = async () => {
         if(!edicionCobro || operandoCobro)return;
+        if(edicionCobro.method===edicionCobro.anterior.method &&
+            edicionCobro.proof.trim()===String(edicionCobro.anterior.proof||'').trim()){
+            setEdicionCobro(null);
+            setAvisoCobro({tipo:'ok',mensaje:'No había cambios para guardar en el medio de cobro.'});
+            return;
+        }
         setOperandoCobro(true);setErrorCobro('');
         try{
             const ref=doc(db,'cobros_public_shared','main_list','items',edicionCobro.id);
