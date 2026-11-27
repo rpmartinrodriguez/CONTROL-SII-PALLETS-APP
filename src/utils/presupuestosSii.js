@@ -41,7 +41,7 @@ export function calcularPresupuesto(data) {
   if(!['1','2'].includes(cuenta))throw Error('Cuenta de facturación inválida');
   const items=(data.items||[]).filter(i=>String(i.descripcion||'').trim() || String(i.precioUnitario||'').trim());
   if(!items.length)throw Error('Cargá al menos un producto.');
-  if(items.length>100)throw Error('El presupuesto admite como máximo 100 renglones.');
+  if(items.length>100)throw Error('La cotización admite como máximo 100 renglones.');
   const lineas=items.map((item,index)=>{
     const cantidad=numeroNatural(item.cantidad);
     const bultos=String(item.bultos??'').trim()===''?0:numeroNatural(item.bultos);
@@ -61,7 +61,7 @@ export function calcularPresupuesto(data) {
   return {lineas,cuenta,subtotalCentavos,ivaCentavos,totalCentavos:subtotalCentavos+ivaCentavos};
 }
 export function validarPresupuesto(data) {
-  if(!String(data.numero||'').trim())throw Error('Ingresá el número de presupuesto.');
+  if(!String(data.numero||'').trim())throw Error('Ingresá el número de cotización.');
   if(!/^\d{4}-\d{8}$/.test(String(data.numero||'').trim()))throw Error('Usá numeración 0005-00000502.');
   const [y,m,d]=String(data.fecha||'').split('-').map(Number);
   const date=new Date(Date.UTC(y,m-1,d));
@@ -71,5 +71,5 @@ export function validarPresupuesto(data) {
 }
 export const nombreArchivo = data => {
   const clean=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9-_]+/g,'_').replace(/^_+|_+$/g,'').slice(0,48);
-  return `SII_Presupuesto_${clean(data.numero)}_${clean(data.cliente?.razonSocial)}.pdf`;
+  return `SII_Cotizacion_${clean(data.numero)}_${clean(data.cliente?.razonSocial)}.pdf`;
 };
