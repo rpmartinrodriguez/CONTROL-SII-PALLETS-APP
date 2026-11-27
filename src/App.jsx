@@ -1358,32 +1358,54 @@ export default function App() {
                 </div>
             )}
 
-            {historyModal.isOpen && historyModal.item && (
+            {historyModal.isOpen && historialMostrado && (
                 <div className="fixed inset-0 modal-overlay z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md animate-fade-in relative">
+                    <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md max-h-[90dvh] overflow-y-auto animate-fade-in relative">
                         <button onClick={() => setHistoryModal({isOpen: false, item: null})} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><IconX className="w-5 h-5"/></button>
-                        <h3 className="text-lg font-bold text-gray-800 mb-2 flex items-center gap-2"><IconEye className="text-purple-500"/> Historial de Pagos</h3>
-                        <p className="text-sm font-bold text-gray-600 mb-4">{historyModal.item.payee} {historyModal.item.number && <span className="font-mono text-gray-400 ml-2">#{historyModal.item.number}</span>}</p>
+                        <h3 className="text-lg font-bold text-gray-800 mb-2 flex items-center gap-2"><IconEye className="text-purple-500"/> Historial de Cobros y Pagos</h3>
+                        <p className="text-sm font-bold text-gray-600 mb-4">{historialMostrado.payee} {historialMostrado.number && <span className="font-mono text-gray-400 ml-2">#{historialMostrado.number}</span>}</p>
                         <div className="bg-gray-50 rounded-xl p-4 mb-4 flex justify-between text-sm shadow-inner border border-gray-200">
-                            <div><span className="block text-[10px] uppercase text-gray-500">Total Original</span><span className="font-bold">{formatMoney(historyModal.item.amount)}</span></div>
-                            <div><span className="block text-[10px] uppercase text-gray-500">Abonado</span><span className="font-bold text-green-600">{formatMoney(historyModal.item.paidAmount || 0)}</span></div>
-                            <div className="text-right"><span className="block text-[10px] uppercase text-gray-500">Saldo Pendiente</span><span className="font-bold text-red-500">{formatMoney(historyModal.item.amount - (historyModal.item.paidAmount || 0))}</span></div>
+                            <div><span className="block text-[10px] uppercase text-gray-500">Total Original</span><span className="font-bold">{formatMoney(historialMostrado.amount)}</span></div>
+                            <div><span className="block text-[10px] uppercase text-gray-500">Abonado</span><span className="font-bold text-green-600">{formatMoney(historialMostrado.paidAmount || 0)}</span></div>
+                            <div className="text-right"><span className="block text-[10px] uppercase text-gray-500">Saldo Pendiente</span><span className="font-bold text-red-500">{formatMoney(historialMostrado.amount - (historialMostrado.paidAmount || 0))}</span></div>
                         </div>
                         <div className="max-h-60 overflow-y-auto space-y-2">
-                            {(!historyModal.item.paymentHistory || historyModal.item.paymentHistory.length === 0) ? (
+                            {(!historialMostrado.paymentHistory || historialMostrado.paymentHistory.length === 0) ? (
                                 <p className="text-center text-gray-400 text-xs py-4 italic">No hay pagos registrados para este comprobante.</p>
                             ) : (
-                                historyModal.item.paymentHistory.map((h, i) => (
-                                    <div key={i} className="flex justify-between items-center p-3 border border-gray-100 rounded-lg bg-white shadow-sm hover:shadow transition-shadow">
+                                historialMostrado.paymentHistory.map((h, i) => (
+                                    <div key={i} className="flex flex-wrap justify-between items-center gap-2 p-3 border border-gray-100 rounded-lg bg-white shadow-sm hover:shadow transition-shadow">
                                         <div>
-                                            <p className="text-xs font-bold text-gray-800">{new Date(h.date).toLocaleDateString('es-AR')} <span className="text-gray-400 font-normal ml-1">• {h.method.toUpperCase()}</span></p>
+                                            <p className="text-xs font-bold text-gray-800">{new Date(h.date).toLocaleDateString('es-AR')} <span className="text-gray-400 font-normal ml-1">• {nombreMedioCobro(h.method)}</span></p>
                                             {h.proof && <p className="text-[10px] text-gray-500 mt-0.5">Ref/Comprobante: <span className="font-mono text-gray-700">{h.proof}</span></p>}
                                         </div>
-                                        <div className="font-black text-green-600">{formatMoney(h.amount)}</div>
+                                        <div className="flex items-center flex-wrap gap-2">
+                                            <div className="font-black text-green-600">{formatMoney(h.amount)}</div>
+                                            {historialMostrado.type==='collect' && <button type="button" disabled={operandoCobro}
+                                                onClick={()=>abrirEdicionCobro(historialMostrado,i)}
+                                                className="rounded-lg bg-blue-50 border border-blue-200 px-2.5 py-1.5 text-xs font-bold text-blue-800 hover:bg-blue-100 disabled:opacity-40">
+                                                Editar medio
+                                            </button>}
+                                        </div>
                                     </div>
                                 ))
                             )}
                         </div>
+                        {historialMostrado.type==='collect' &&
+                            (historialMostrado.historialAnulacionesCobro||[]).length>0&&
+                            <div className="mt-4 p-3 rounded-xl bg-amber-50 border border-amber-200">
+                                <p className="text-xs font-extrabold text-amber-900 mb-2">Anulaciones anteriores</p>
+                                {(historialMostrado.historialAnulacionesCobro||[]).slice().reverse().map((anulacion,index)=>
+                                    <p key={index} className="text-xs text-amber-900 border-t border-amber-200 py-2">
+                                        {new Date(anulacion.fecha).toLocaleDateString('es-AR')} · {formatMoney(anulacion.importeAnulado)} anulado · {anulacion.pagos?.length||0} movimiento(s)
+                                    </p>)}
+                            </div>}
+                        {historialMostrado.type==='collect'&&historialMostrado.status==='paid'&&
+                            <button type="button" disabled={operandoCobro} onClick={()=>anularCobroAction(historialMostrado)}
+                                className="w-full mt-4 px-4 py-3 rounded-xl border border-rose-300 bg-rose-50 font-bold text-sm text-rose-800 hover:bg-rose-100 disabled:opacity-50">
+                                Anular cobro y volver a pendiente
+                            </button>}
+                        {errorCobro&&<p role="alert" className="text-xs text-rose-800 bg-rose-50 p-3 mt-3 rounded-lg">{errorCobro}</p>}
                         <div className="mt-6">
                             <button onClick={() => setHistoryModal({isOpen: false, item: null})} className="w-full py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-colors">Cerrar</button>
                         </div>
@@ -1391,6 +1413,37 @@ export default function App() {
                 </div>
             )}
 
+            {edicionCobro&&<div className="fixed inset-0 bg-slate-950/60 z-[80] flex items-center justify-center p-3">
+                <section role="dialog" aria-modal="true" aria-label="Editar medio del cobro"
+                    className="w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl bg-white p-5 sm:p-6 shadow-2xl space-y-4">
+                    <div>
+                        <h3 className="font-black text-lg text-slate-900">Editar cobro registrado</h3>
+                        <p className="text-sm text-slate-600 mt-1">{edicionCobro.payee} · Factura {edicionCobro.numero}</p>
+                        <p className="text-xs text-slate-500 mt-1">Importe original: {formatMoney(edicionCobro.anterior.amount)} · No se modifica el saldo.</p>
+                    </div>
+                    <label className="block text-sm font-bold text-slate-700">Medio de cobro
+                        <select value={edicionCobro.method} onChange={e=>setEdicionCobro(v=>({...v,method:e.target.value}))}
+                            className="block w-full mt-2 bg-white rounded-xl border border-slate-300 p-3">
+                            {MEDIOS_COBRO.map(m=><option key={m.id} value={m.id}>{m.nombre}</option>)}
+                        </select>
+                    </label>
+                    <label className="block text-sm font-bold text-slate-700">N.º de comprobante / Nota (opcional)
+                        <input type="text" maxLength={180} value={edicionCobro.proof}
+                            onChange={e=>setEdicionCobro(v=>({...v,proof:e.target.value}))}
+                            className="block w-full mt-2 bg-white rounded-xl border border-slate-300 p-3"/>
+                    </label>
+                    <p className="text-xs text-slate-500">Se guarda constancia de la corrección. No se genera ninguna notificación push.</p>
+                    {errorCobro&&<p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{errorCobro}</p>}
+                    <div className="flex gap-2">
+                        <button type="button" disabled={operandoCobro} onClick={()=>{setEdicionCobro(null);setErrorCobro('');}}
+                            className="flex-1 rounded-xl bg-slate-100 text-slate-800 px-4 py-3 text-sm font-bold disabled:opacity-50">Cancelar</button>
+                        <button type="button" disabled={operandoCobro} onClick={guardarEdicionCobro}
+                            className="flex-1 rounded-xl bg-blue-800 text-white px-4 py-3 text-sm font-bold disabled:opacity-50">
+                            {operandoCobro?'Guardando…':'Guardar corrección'}
+                        </button>
+                    </div>
+                </section>
+            </div>}
             {rangeReportModal.isOpen && (
                 <div className="fixed inset-0 modal-overlay z-50 flex items-center justify-center p-4 animate-fade-in">
                     <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
