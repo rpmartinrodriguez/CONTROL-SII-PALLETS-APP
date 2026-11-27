@@ -10,7 +10,7 @@ import ResumenCuentasCobros from './ResumenCuentasCobros';
 export default function Movimientos({
     mode, theme, payTab, setPayTab, totalRealizados, balanceData, dashboardData, activeFilter, setActiveFilter,
     triggerMainReport, showAddForm, setShowAddForm, setEditingId, editingId, newItem, setNewItem, handleAdd, banks,
-    uniqueClients, getDays, markFullPayment, markPartialPayment, setHistoryModal, deleteItem, handleEdit,
+    uniqueClients, getDays, markFullPayment, markPartialPayment, setHistoryModal, anularCobro, operandoCobro, avisoCobro, deleteItem, handleEdit,
     groupedView, expandedGroups, setExpandedGroups, triggerClientReport, selectedDateFilter, setSelectedDateFilter,
     newBank, setNewBank, addBank, deleteBank, collectItems = []
 }) {
@@ -112,6 +112,12 @@ export default function Movimientos({
                         </div>
                     </div>
                 </div>
+                {mode === 'collect' && isPaid && <div className="flex justify-end border-t border-slate-100 pt-3">
+                    <button type="button" disabled={operandoCobro} onClick={()=>anularCobro(item)}
+                        className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-2 text-xs font-extrabold text-rose-800 hover:bg-rose-100 disabled:opacity-50">
+                        Anular cobro
+                    </button>
+                </div>}
                 {/* Detalle Integrado Cancelaciones Parciales */}
                 {(item.status === 'partial' && item.paymentHistory && item.paymentHistory.length > 0) && (
                     <div className="mt-2 pt-2 border-t border-dashed border-gray-200 bg-gray-50/50 rounded-lg p-2">
@@ -130,6 +136,11 @@ export default function Movimientos({
 
     return (
         <div className="animate-fade-in">
+            {mode==='collect'&&avisoCobro&&<p role={avisoCobro.tipo==='error'?'alert':'status'}
+                className={'rounded-xl border p-3 mb-4 text-sm font-semibold '+
+                  (avisoCobro.tipo==='error'?'border-rose-200 bg-rose-50 text-rose-800':'border-emerald-200 bg-emerald-50 text-emerald-800')}>
+                {avisoCobro.mensaje}
+            </p>}
             {/* Sub-Tabs Módulo Pagos */}
             {mode === 'pay' && (
                 <div className="flex bg-blue-100 p-1 rounded-xl mb-6 shadow-inner text-sm font-bold">
