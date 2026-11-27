@@ -187,12 +187,12 @@ export default function Pallets({ theme, produccionMensual, costosMadres, pallet
     };
     
     const deleteQuote = async (id) => { 
-        if(confirm('¿Eliminar Presupuesto?')) await deleteDoc(doc(db, 'presupuestos_sii', 'main_list', 'items', id)); 
+        if(confirm('¿Eliminar Cotización?')) await deleteDoc(doc(db, 'presupuestos_sii', 'main_list', 'items', id)); 
     };
 
     const triggerQuoteReport = (quote, action) => {
         let bodyHTML = `
-            <h1>Presupuesto</h1>
+            <h1>Cotización</h1>
             <p class="meta">Fecha: ${new Date(quote.date+'T00:00:00').toLocaleDateString('es-AR')} • Cliente: <strong>${quote.cliente}</strong></p>
             <table style="width:100%; margin-top:20px; text-align:left;">
                 <thead style="background:#f3f4f6;">
@@ -229,11 +229,11 @@ export default function Pallets({ theme, produccionMensual, costosMadres, pallet
                 <span style="color:#0369a1;">TOTAL GENERAL: <strong>${formatMoney(quote.totalCosto)}</strong></span>
             </div>
         `;
-        handleReportAction(`Presupuesto - ${quote.cliente}`, bodyHTML, action, `Presupuesto_${quote.cliente.replace(/\s+/g, '_')}`);
+        handleReportAction(`Cotización - ${quote.cliente}`, bodyHTML, action, `Cotizacion_${quote.cliente.replace(/\s+/g, '_')}`);
     };
 
     const sendQuoteWP = (quote) => {
-        let text = `*PRESUPUESTO - SII PALLETS*\nCliente: ${quote.cliente}\nFecha: ${new Date(quote.date+'T00:00:00').toLocaleDateString('es-AR')}\n\n*Detalle:*\n`;
+        let text = `*COTIZACIÓN - SII PALLETS*\nCliente: ${quote.cliente}\nFecha: ${new Date(quote.date+'T00:00:00').toLocaleDateString('es-AR')}\n\n*Detalle:*\n`;
         quote.items.forEach(i => {
             const pObj = palletsTemplates.find(p => p.id === i.palletId);
             text += `- ${i.qty}x ${pObj ? pObj.nombre : 'Item'} (${formatMoney((pObj?pObj.totalCosto:0)*i.qty)})\n`;
@@ -743,7 +743,7 @@ export default function Pallets({ theme, produccionMensual, costosMadres, pallet
                         }} 
                         className={`w-full ${theme.btn} hover:opacity-90 text-white p-3 rounded-xl shadow-md mb-6 flex items-center justify-center gap-2 font-bold transition-all active:scale-95`}
                     >
-                        <IconPlus className="w-5 h-5"/> {showAddForm && !editingId ? 'Cancelar' : 'Armar Nuevo Presupuesto'}
+                        <IconPlus className="w-5 h-5"/> {showAddForm && !editingId ? 'Cancelar' : 'Armar Nueva Cotización'}
                     </button>
 
                     {showAddForm && (
@@ -751,7 +751,7 @@ export default function Pallets({ theme, produccionMensual, costosMadres, pallet
                             <div className="absolute top-0 left-0 w-1 h-full bg-teal-600"></div>
                             <div className="flex justify-between items-center mb-4">
                                 <h3 className="font-bold text-gray-700">
-                                    {editingId ? 'Editar Presupuesto' : 'Generador de Presupuesto'}
+                                    {editingId ? 'Editar Cotización' : 'Generador de Cotización'}
                                 </h3>
                                 {editingId && (
                                     <button 
@@ -835,7 +835,7 @@ export default function Pallets({ theme, produccionMensual, costosMadres, pallet
 
                                 <div className="bg-blue-50 p-5 rounded-xl border border-blue-200 flex justify-between items-center shadow-inner">
                                     <div>
-                                        <p className="text-[10px] font-bold text-blue-800 uppercase mb-1">Volumen Madera Presupuesto</p>
+                                        <p className="text-[10px] font-bold text-blue-800 uppercase mb-1">Volumen Madera Cotización</p>
                                         <p className="text-lg font-black text-orange-600">{getQuoteTotals(newQuote.items).quoteTotalPie2.toFixed(2)} Pie²</p>
                                     </div>
                                     <div className="text-right">
@@ -845,16 +845,16 @@ export default function Pallets({ theme, produccionMensual, costosMadres, pallet
                                 </div>
 
                                 <button onClick={saveQuote} className="w-full bg-blue-600 text-white p-3 rounded-lg font-bold hover:bg-blue-700 shadow-md">
-                                    Guardar Presupuesto
+                                    Guardar Cotización
                                 </button>
                             </div>
                         </div>
                     )}
 
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                        <div className="p-3 bg-gray-50 border-b font-bold text-sm text-gray-600">Historial de Presupuestos</div>
+                        <div className="p-3 bg-gray-50 border-b font-bold text-sm text-gray-600">Historial de Cotizaciones</div>
                         {presupuestos.length === 0 ? (
-                            <p className="p-4 text-center text-xs text-gray-400">No hay presupuestos armados.</p>
+                            <p className="p-4 text-center text-xs text-gray-400">No hay cotizaciones armadas.</p>
                         ) : (
                             <div className="divide-y divide-gray-100">
                                 {presupuestos.map(q => {
