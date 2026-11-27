@@ -13,7 +13,7 @@ const modules = [
   {id:'balance',title:'Balance',hint:'Tu posición financiera',Icon:IconPieChart},
   {id:'cashbox',title:'Caja',hint:'Ingresos y egresos',Icon:IconBox},
   {id:'billing',title:'Facturación',hint:'Comprobantes e IVA',Icon:IconBuilding},
-  {id:'quotesPDF',title:'Presupuestos',hint:'Clientes y cotizaciones',Icon:IconFileText},
+  {id:'quotesPDF',title:'Cotizaciones',hint:'Clientes y cotizaciones',Icon:IconFileText},
   {id:'wallet',title:'Cartera',hint:'Cheques y seguimiento',Icon:IconBank},
   {id:'pallets',title:'Pallets',hint:'Costos y producción',Icon:IconLayers},
   {id:'migration',title:'Respaldo',hint:'Auditoría y migración',Icon:IconDownload}
