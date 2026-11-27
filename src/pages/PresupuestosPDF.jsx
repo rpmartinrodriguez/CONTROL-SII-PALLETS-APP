@@ -244,7 +244,7 @@ export default function PresupuestosPDF() {
       });
       setVistaGuardados('pendientes');
       if(grupo)setClienteGuardadoAbierto('pendientes:'+grupo.clave);
-      setGestionMensaje('Cotización '+p.numero+' devuelta a Pendientes. La nota interna se conservó.');
+      setGestionMensaje('Cotización '+p.numero+' devuelta a pendientes. La nota interna se conservó.');
     }catch(err){
       setGestionError('No se pudo volver a pendientes: '+(err?.message||String(err)));
     }finally{envioEnCurso.current=false;setBusy('');}
